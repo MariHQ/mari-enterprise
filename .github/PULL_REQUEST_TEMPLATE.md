@@ -10,7 +10,7 @@
 
 - [ ] All commits are signed off (`git commit -s`), agreeing to the [CLA](../CLA.md)
 - [ ] `npm run check` and `npm run build` pass in `web/` (if the console changed)
-- [ ] Schema changes are idempotent and live in a `server/init*.sql` file
+- [ ] Mari reads through the Knowledge API and writes through Kafka, with no PostgreSQL connection
 - [ ] Visual changes went to the [mari-design](https://github.com/MariHQ/mari-design) library, not `web/`
 - [ ] Page adapters map API responses only — no values invented in `web/src/data/`
 - [ ] No credentials, tokens, or canned/placeholder data added

@@ -1,0 +1,12 @@
+-c ../constraints.txt
+fastapi
+uvicorn
+httpx
+boto3
+confluent-kafka
+temporalio
+pydantic
+pyiceberg[sql-postgres,pyarrow]
+psycopg[binary]
+grpcio>=1.76.0
+protobuf>=6.31.1,<7

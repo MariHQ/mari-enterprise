@@ -1,0 +1,253 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: mari-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - name: api
+        image: localhost:5001/mari-runtime:local
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+        - name: MARI_SERVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: MARI_SERVICE_TOKEN
+        - name: GITHUB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: GITHUB_WEBHOOK_SECRET
+        - name: SLACK_SIGNING_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: SLACK_SIGNING_SECRET
+        - name: TEMPORAL_ADDRESS
+          value: temporal:7233
+        - name: SUBSTRATE_MINER_TARGET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: SUBSTRATE_MINER_TARGET
+              optional: true
+        - name: TEMPORAL_TASK_QUEUES
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: TEMPORAL_TASK_QUEUES
+              optional: true
+        - name: SUBSTRATE_ROUTER
+          value: http://atenet-router.ate-system.svc.cluster.local
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: mari-kafka-kafka-bootstrap:9092
+        - name: KNOWLEDGE_API_URL
+          value: http://knowledge-api:8000
+        envFrom:
+        - secretRef:
+            name: aws-s3
+        ports:
+        - containerPort: 8000
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: mari-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: localhost:5001/mari-runtime:local
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+        - name: MARI_SERVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: MARI_SERVICE_TOKEN
+        - name: GITHUB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: GITHUB_WEBHOOK_SECRET
+        - name: SLACK_SIGNING_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: SLACK_SIGNING_SECRET
+        - name: TEMPORAL_ADDRESS
+          value: temporal:7233
+        - name: SUBSTRATE_ROUTER
+          value: http://atenet-router.ate-system.svc.cluster.local
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: mari-kafka-kafka-bootstrap:9092
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: model-secrets
+              key: OPENAI_API_KEY
+        - name: SUBSTRATE_MINER_TARGET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: SUBSTRATE_MINER_TARGET
+              optional: true
+        - name: TEMPORAL_TASK_QUEUES
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: TEMPORAL_TASK_QUEUES
+              optional: true
+        - name: GITHUB_REPOSITORIES
+          valueFrom:
+            secretKeyRef:
+              name: connector-secrets
+              key: GITHUB_REPOSITORIES
+              optional: true
+        - name: KNOWLEDGE_API_URL
+          value: http://knowledge-api:8000
+        - name: COMPACTION_IMAGE
+          value: localhost:5001/mari-compaction:local
+        - name: AX_OBSERVATION_ENABLED
+          value: 'true'
+        - name: AX_MINER_IMAGE
+          value: localhost:5001/mari-ax-miner:local
+        - name: AX_TRAJECTORY_ROOTS
+          value: '["/workspace/mari-trajectories"]'
+        - name: CLAUDE_CODE_OAUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: claude-subscription
+              key: CLAUDE_CODE_OAUTH_TOKEN
+        envFrom:
+        - secretRef:
+            name: iceberg-catalog
+        - secretRef:
+            name: aws-s3
+        - secretRef:
+            name: connector-secrets
+            optional: true
+        command:
+        - python
+        - -m
+        - runtime.worker
+        volumeMounts:
+        - name: substrate-identity
+          mountPath: /var/run/substrate
+          readOnly: true
+      volumes:
+      - name: substrate-identity
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: api.ate-system.svc
+              path: token
+              expirationSeconds: 3600
+          - clusterTrustBundle:
+              name: servicedns.podcert.ate.dev:identity:primary-bundle
+              path: ca.crt
+      serviceAccountName: maintenance-worker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: mari-platform
+spec:
+  selector:
+    app: api
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: platform-bootstrap
+  namespace: mari-platform
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: bootstrap
+        env:
+        - name: SUBSTRATE_MINER_TARGET
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: SUBSTRATE_MINER_TARGET
+              optional: true
+        - name: TEMPORAL_TASK_QUEUES
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: TEMPORAL_TASK_QUEUES
+              optional: true
+        - name: GITHUB_REPOSITORIES
+          valueFrom:
+            secretKeyRef:
+              name: connector-secrets
+              key: GITHUB_REPOSITORIES
+              optional: true
+        - name: SLACK_CHANNELS
+          valueFrom:
+            secretKeyRef:
+              name: connector-secrets
+              key: SLACK_CHANNELS
+              optional: true
+        - name: AX_OBSERVATION_ENABLED
+          value: 'true'
+        image: localhost:5001/mari-runtime:local
+        command:
+        - python
+        - -m
+        - runtime.bootstrap
+        envFrom:
+        - secretRef:
+            name: aws-s3

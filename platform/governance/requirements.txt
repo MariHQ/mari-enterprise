@@ -1,0 +1,8 @@
+-c ../constraints.txt
+fastapi
+uvicorn
+httpx
+confluent-kafka
+temporalio
+pydantic
+starlette

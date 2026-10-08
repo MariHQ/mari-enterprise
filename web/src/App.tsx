@@ -1,3 +1,4 @@
+import { pageReadError } from './data/requirements';
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { PAGES, type PageModule } from "@mari-design/components/pages";
@@ -5,13 +6,9 @@ import { landingPageFor, type ShellChrome } from "@mari-design/components/pages/
 import { NavProvider } from "@mari-design/components/navigation/Link";
 import { adapterFor } from "./data";
 import { STUBBED } from "./data/stubs";
-import { useChrome } from "./data/chrome";
 import { SEARCH_SCOPES, globalSearch } from "./data/search";
 import { ACTION_FACTORIES } from "./data/actions";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { AgentDock, AgentDockProvider } from "./components/AgentDock";
-import { KnowledgeChatDestination } from "./components/KnowledgeChatDestination";
-import { FactScanConfiguration } from "./components/FactScanConfiguration";
 import { useIsMobile } from "./lib/mobile";
 
 /* The whole console, routed off the component library's own page registry.
@@ -20,15 +17,8 @@ import { useIsMobile } from "./lib/mobile";
  * the component; `src/data/` supplies the data. Adding a page to the library
  * adds it here — the only local step is writing its adapter. */
 
-/** Ids that must stay reachable without a session.
- *
- *  Welcome was here and is not: onboarding is for a signed-in user (see
- *  AUTH_ONLY below, which already said so), and its adapter reads the
- *  connector catalog, the workspace's repos and its sync rows. Reachable
- *  without a session, that query could only come back 401, and the page
- *  rendered the read-error card at a visitor whose actual problem was that
- *  they were not signed in. */
-const PUBLIC = new Set(["login", "setup"]);
+/** Authentication routes remain reachable without a session. */
+const PUBLIC = new Set(["login"]);
 
 /** Pages the library ships for itself, not for a workspace. The Lookbook is
  *  the design system exhibiting itself — its content is a set of deliberately
@@ -40,21 +30,17 @@ const LIBRARY_ONLY = new Set<string>(STUBBED);
 /** Everything the console routes: the library's registry minus its own
  *  exhibits. A page added to the library appears here the moment it has an
  *  adapter — the only local step. */
-const APP_PAGES = PAGES.filter((p) => !LIBRARY_ONLY.has(p.id));
+const APP_PAGES = PAGES.filter((p) => p.id !== "setup" && !LIBRARY_ONLY.has(p.id));
 
-/** The chrome the frame draws around every page — session, navigation, global
- *  search, notifications. One hook, so the not-found page below is framed by
- *  the same console as everything else rather than a bare white box. */
+/** Shared session, navigation, and search bindings for the page frame. */
 function useShellChrome(): ShellChrome {
   const { user, logout, projects, activeProject, selectProject } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  // The bell and the search overlay are the same on every page, so they are
-  // fetched here rather than by 25 page adapters.
-  const { notifications, recentSearches } = useChrome();
   // The real session drives the topbar. The frame names the signed-out state
   // itself when this is absent; it never invents a person.
   return useMemo(() => ({
+    hiddenNavIds: [],
     user: user
       ? { name: user.name, initials: user.initials, detail: user.role === "admin" ? "Admin" : user.role }
       : undefined,
@@ -81,17 +67,7 @@ function useShellChrome(): ShellChrome {
     // Global search lives in the frame, so every page gets the same one.
     onSearch: (q: string) => globalSearch(q),
     searchScopes: SEARCH_SCOPES,
-    // Real rows from the workspace's notification table, and the queries it
-    // has actually run. Both were absent, which made the bell a zero on every
-    // page and the search overlay's "recent" list permanently empty.
-    notifications,
-    recentSearches,
-    // The agent rides beside every routed page and survives route changes:
-    // its transcript lives in AgentDockProvider, so the surface can remount
-    // with each page's frame. The published knowledge chat is its own
-    // conversation and gets no second one floating over it.
-    aside: pathname.startsWith("/knowledge-chat/") ? undefined : <AgentDock />,
-  }), [user, logout, projects, activeProject, selectProject, navigate, notifications, recentSearches, pathname]);
+  }), [user, logout, projects, activeProject, selectProject, navigate, pathname]);
 }
 
 
@@ -122,7 +98,7 @@ function routeFor(page: PageModule<any, any>) {
       <Page
         data={data}
         loading={loading}
-        error={error}
+        error={pageReadError(page.id, error)}
         actions={actions}
         chrome={chrome}
         mobile={useIsMobile()}
@@ -137,26 +113,23 @@ const ROUTES = APP_PAGES.map((page) => ({ page, Element: routeFor(page) }));
  *  login screen for a beat and then swapping it for the console is worse than
  *  a blank frame. */
 function Gate({ children }: { children: React.ReactNode }) {
-  const { user, needsSetup, loading } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return null;
-  if (needsSetup) return <Navigate to="/setup" replace />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 /** The mirror of Gate, and just as necessary: an authenticated visitor has no
- *  business on the sign-in or first-run screens. Without this, signing in
+ *  business on the sign-in screen. Without this, signing in
  *  succeeds — the cookie is set and /auth/me returns the user — and the login
  *  form just sits there, which is indistinguishable from the submit failing.
  *  Welcome is deliberately NOT here: onboarding is for a signed-in user. */
-const AUTH_ONLY = new Set(["login", "setup"]);
+const AUTH_ONLY = new Set(["login"]);
 
 function PublicOnly({ id, children }: { id: string; children: React.ReactNode }) {
-  const { user, needsSetup, loading } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return null;
   if (AUTH_ONLY.has(id) && user) return <Navigate to="/" replace />;
-  // First-run setup is finished: nobody should be able to re-run it.
-  if (id === "setup" && !needsSetup && !user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
@@ -198,10 +171,8 @@ function Routed() {
   const navigate = useNavigate();
   return (
     <NavProvider navigate={navigate}>
-      <AgentDockProvider>
       <RouteFocus />
       <Routes>
-          <Route path="/knowledge-chat/:project/:slug" element={<KnowledgeChatDestination />} />
           <Route path="/trajectories" element={<Navigate to="/workflows" replace />} />
           {ROUTES.map(({ page, Element }) => (
             <Route
@@ -233,8 +204,6 @@ function Routed() {
             missing. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <FactScanConfiguration />
-      </AgentDockProvider>
     </NavProvider>
   );
 }

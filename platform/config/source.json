@@ -1,0 +1,14 @@
+{
+  "version": "0.8",
+  "source_id": "telemetry-kafka",
+  "source_type": "kafka",
+  "num_pipelines": 1,
+  "params": {
+    "topic": "mari.telemetry",
+    "client_params": {
+      "bootstrap.servers": "mari-kafka-kafka-bootstrap:9092",
+      "auto.offset.reset": "earliest",
+      "isolation.level": "read_committed"
+    }
+  }
+}

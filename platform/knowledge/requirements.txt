@@ -1,0 +1,10 @@
+-c ../constraints.txt
+fastapi
+uvicorn
+duckdb
+pyiceberg[sql-postgres,pyarrow]
+psycopg[binary]
+SQLAlchemy
+sqlglot
+pymysql
+-r ../indexing/requirements.txt

@@ -1,0 +1,251 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ax-controller
+  namespace: ax-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ax-controller
+  namespace: ax-system
+  labels:
+    app.kubernetes.io/name: ax-controller
+    app.kubernetes.io/part-of: ax
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ax-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ax-controller
+    spec:
+      serviceAccountName: ax-controller
+      containers:
+      - name: controller
+        image: localhost:5001/mari-ax-controller@sha256:7667271f426604c8bb0002fc64963612edf93eea8d3982cf0043e0b054b6ea52
+        imagePullPolicy: IfNotPresent
+        args:
+        - --redis-addr=ax-redis.ax-system.svc.cluster.local:6379
+        - --substrate-endpoint=api.ate-system.svc.cluster.local:443
+        - --substrate-authority=api.ate-system.svc
+        - --substrate-token-file=/var/run/secrets/ateapi/token
+        - --substrate-ca-file=/run/servicedns-ca/trust-bundle.pem
+        - --template=default-template
+        - --template-atespace=ax-system
+        env:
+        - name: ATENET_ROUTER_ADDR
+          value: atenet-router.ate-system.svc.cluster.local:80
+        - name: AX_SNAPSHOTS_BUCKET
+          value: gs://${S3_BUCKET}/substrate/ax/
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /var/run/secrets/ateapi
+          name: ate-token
+          readOnly: true
+        - mountPath: /run/servicedns-ca
+          name: servicedns-ca
+          readOnly: true
+      volumes:
+      - name: ate-token
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: api.ate-system.svc
+              expirationSeconds: 7200
+              path: token
+      - name: servicedns-ca
+        projected:
+          defaultMode: 420
+          sources:
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+      automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ax-server
+  namespace: ax-system
+  labels:
+    app.kubernetes.io/name: ax-server
+    app.kubernetes.io/part-of: ax
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ax-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ax-server
+    spec:
+      containers:
+      - name: ax-server
+        image: localhost:5001/mari-ax-server@sha256:8c9dc6559490b8fa70ff14c04e9e54cb2e2ce05bd8f9978fa674dc6c4860be1b
+        imagePullPolicy: IfNotPresent
+        args:
+        - --addr=:8080
+        - --redis-addr=ax-redis.ax-system.svc.cluster.local:6379
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ax-server
+  namespace: ax-system
+  labels:
+    app.kubernetes.io/name: ax-server
+    app.kubernetes.io/part-of: ax
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app.kubernetes.io/name: ax-server
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ax-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ax-redis
+  namespace: ax-system
+  labels:
+    app.kubernetes.io/name: ax-redis
+    app.kubernetes.io/part-of: ax
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ax-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ax-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        args:
+        - --appendonly
+        - 'yes'
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      automountServiceAccountToken: false
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: ax-redis
+  strategy:
+    type: Recreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ax-redis
+  namespace: ax-system
+  labels:
+    app.kubernetes.io/name: ax-redis
+    app.kubernetes.io/part-of: ax
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app.kubernetes.io/name: ax-redis
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ax-controller
+  namespace: ax-system
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ax-controller
+  namespace: ax-system
+subjects:
+- kind: ServiceAccount
+  name: ax-controller
+  namespace: ax-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ax-controller
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ax-redis
+  namespace: ax-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

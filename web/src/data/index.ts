@@ -1,56 +1,22 @@
-/* Page id → adapter. The one place the app decides where a page's data comes
- * from. Anything absent here falls back to the stub (see stubs.ts). */
-
-import { useAudit } from "./audit";
-import { useSettingsAuditLog } from "./audit-log";
-import { useLogin, useSetup } from "./auth-pages";
-import { useDecisions } from "./decisions";
-import { useDocReview } from "./doc-review";
-import { useFacts } from "./facts";
-import { useInsights } from "./insights";
-import { useKnowledge } from "./knowledge";
-import { useLibrary } from "./library";
-import { useLineage } from "./lineage";
-import { useOverview } from "./overview";
-import { usePreferences } from "./preferences";
-import { usePublish } from "./publish";
-import { useSettingsApiKeys, useSettingsMembers } from "./settings";
-import { useSettingsDesign } from "./settings-design";
-import { useSettingsGeneral } from "./settings-general";
-import { useSettingsModels } from "./settings-models";
-import { useSources } from "./sources";
-import { useScheduledTasks } from "./scheduled-tasks";
-import { stub } from "./stubs";
-import { useWorkflows } from "./workflows";
-import type { Adapter } from "./types";
-import { useWelcome } from "./welcome";
+import { usePlatformWorkflows } from './platform-workflows';
+import { usePlatformFacts } from './platform-facts';
+import { usePlatformDecisions } from './platform-decisions';
+import { usePlatformOverview, usePlatformSources } from './platform-views';
+import { usePlatformScheduledTasks } from './platform-operations';
+import { usePlatformKnowledge, usePlatformDocument, usePlatformLineage } from './platform';
+import { useLogin } from './auth-pages';
+import { pageReadError } from './requirements';
+import type { Adapter } from './types';
 
 const ADAPTERS: Record<string, Adapter<any>> = {
-  audit: useAudit,
-  decisions: useDecisions,
-  "doc-review": useDocReview,
-  facts: useFacts,
-  insights: useInsights,
-  knowledge: useKnowledge,
-  library: useLibrary,
-  lineage: useLineage,
+  workflows: usePlatformWorkflows, facts: usePlatformFacts, decisions: usePlatformDecisions,
+  overview: usePlatformOverview, sources: usePlatformSources,
+  'scheduled-tasks': usePlatformScheduledTasks, knowledge: usePlatformKnowledge,
+  'doc-review': usePlatformDocument, lineage: usePlatformLineage,
   login: useLogin,
-  overview: useOverview,
-  preferences: usePreferences,
-  publish: usePublish,
-  setup: useSetup,
-  "settings-api-keys": useSettingsApiKeys,
-  "settings-audit-log": useSettingsAuditLog,
-  "settings-design": useSettingsDesign,
-  "settings-general": useSettingsGeneral,
-  "settings-members": useSettingsMembers,
-  "settings-models": useSettingsModels,
-  sources: useSources,
-  "scheduled-tasks": useScheduledTasks,
-  welcome: useWelcome,
-  workflows: useWorkflows,
 };
 
 export function adapterFor(pageId: string): Adapter<any> {
-  return ADAPTERS[pageId] ?? stub;
+  return ADAPTERS[pageId] ?? (() => ({data: null, loading: false,
+    error: pageReadError(pageId, 'GRAPH_MAPPING_REQUIRED: This view needs a platform mapping.')}));
 }

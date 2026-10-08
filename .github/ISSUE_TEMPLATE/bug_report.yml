@@ -57,7 +57,7 @@ body:
     id: install
     attributes:
       label: How are you running Mari?
-      description: Docker compose, a local dev setup, the desktop app, or a hosted instance.
-      placeholder: docker compose (quick start)
+      description: Flux platform or a local development setup.
+      placeholder: Flux on local Kubernetes
     validations:
       required: false

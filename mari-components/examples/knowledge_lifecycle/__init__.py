@@ -1,1 +1,0 @@
-"""Executable knowledge lifecycle example."""

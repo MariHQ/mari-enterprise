@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flink
+  namespace: mari-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flink
+  namespace: mari-platform
+rules:
+  - apiGroups: ['']
+    resources: [pods, services, configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flink
+  namespace: mari-platform
+subjects:
+  - kind: ServiceAccount
+    name: flink
+    namespace: mari-platform
+roleRef:
+  kind: Role
+  name: flink
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maintenance-worker
+  namespace: mari-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: maintenance-worker
+  namespace: mari-platform
+rules:
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [create, get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: maintenance-worker
+  namespace: mari-platform
+subjects:
+- kind: ServiceAccount
+  name: maintenance-worker
+  namespace: mari-platform
+roleRef:
+  kind: Role
+  name: maintenance-worker
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,46 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: mari-knowledge-lake
+  namespace: mari-platform
+spec:
+  image: localhost:5001/mari-flink:local
+  flinkVersion: v1_20
+  serviceAccount: flink
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: '2'
+    execution.checkpointing.interval: 5min
+    high-availability.type: kubernetes
+    high-availability.storageDir: s3://${S3_BUCKET}/flink/topic-lake-v3/ha
+    state.checkpoints.dir: s3://${S3_BUCKET}/flink/topic-lake-v3/checkpoints
+    state.savepoints.dir: s3://${S3_BUCKET}/flink/topic-lake-v3/savepoints
+    s3.region: ${AWS_REGION}
+    kubernetes.operator.periodic.savepoint.interval: 1h
+    kubernetes.operator.job.restart.failed: 'true'
+  jobManager:
+    resource:
+      memory: 1024m
+      cpu: 0.5
+  taskManager:
+    resource:
+      memory: 1536m
+      cpu: 1
+  podTemplate:
+    spec:
+      containers:
+      - name: flink-main-container
+        envFrom:
+        - secretRef:
+            name: aws-s3
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: DB_PASSWORD
+  job:
+    jarURI: local:///opt/flink/usrlib/mari-lake.jar
+    entryClass: guru.mari.LakeJob
+    parallelism: 1
+    upgradeMode: savepoint
+    state: running

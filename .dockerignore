@@ -1,36 +1,24 @@
-# Scoped for the api image build (context = repo root, server/Dockerfile).
+# General exclusions; platform images build from the parent workspace.
 
-# Not needed by the server image
+# Not needed in application images
 .git/
 .github/
-desktop/
 output/
 artifacts/
 .artifacts/
 var/
-DESIGN.md
-FLOWS-DESIGN.md
 README.md
-mari.toml.example
-docker-compose.yml
 .env
-.env.example
 
 # Python cruft
 **/__pycache__/
 **/*.pyc
-server/.venv/
 **/node_modules/
 **/dist/
 
-# The Fly image only consumes the design-system components copied by its
-# Dockerfile. Excluding the rest keeps remote deployment builds small.
+# Images only consume the design-system components copied by their
+# Dockerfiles. Excluding the rest keeps build contexts small.
 vendor/mari-design/.git/
 vendor/mari-design/.preview/
 vendor/mari-design/node_modules/
 vendor/mari-design/output/
-vendor/mari-kit/
-docs/temporal-fact-intelligence-design.md
-
-# Runtime output (recreated at startup)
-server/builds/

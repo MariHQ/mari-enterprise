@@ -1,0 +1,118 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: local
+  namespace: mari-platform
+  labels:
+    strimzi.io/cluster: mari-kafka
+spec:
+  replicas: 1
+  roles:
+  - controller
+  - broker
+  storage:
+    type: jbod
+    volumes:
+    - id: 0
+      type: persistent-claim
+      size: 5Gi
+      deleteClaim: false
+      kraftMetadata: shared
+  resources:
+    requests:
+      cpu: 200m
+      memory: 768Mi
+    limits:
+      memory: 1536Mi
+  jvmOptions:
+    -Xms: 256m
+    -Xmx: 512m
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: mari-kafka
+  namespace: mari-platform
+spec:
+  kafka:
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    listeners:
+    - name: plain
+      port: 9092
+      type: internal
+      tls: false
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+    readinessProbe:
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+      failureThreshold: 12
+    livenessProbe:
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+      failureThreshold: 12
+  entityOperator:
+    topicOperator: {}
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari-evidence
+  namespace: mari-platform
+  labels:
+    strimzi.io/cluster: mari-kafka
+spec:
+  topicName: mari.evidence
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari-knowledge
+  namespace: mari-platform
+  labels:
+    strimzi.io/cluster: mari-kafka
+spec:
+  topicName: mari.knowledge
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari-telemetry
+  namespace: mari-platform
+  labels:
+    strimzi.io/cluster: mari-kafka
+spec:
+  topicName: mari.telemetry
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari-evidence-curated
+  namespace: mari-platform
+  labels:
+    strimzi.io/cluster: mari-kafka
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  topicName: mari.evidence.curated
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: -1

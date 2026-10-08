@@ -1,0 +1,27 @@
+metadata:
+  atespace: mari
+  name: miner-v1
+workerSelector:
+  matchLabels:
+    workload: mari
+containers:
+  - name: miner
+    image: localhost:5001/mari-miner:local
+    command: [/usr/local/bin/python, -u, /app/actor.py]
+    readyz:
+      httpGet:
+        path: /readyz
+        port: 80
+resources:
+  limits:
+    - name: cpu
+      quantity: '1'
+    - name: memory
+      quantity: 256Mi
+snapshotsConfig:
+  onPause: SNAPSHOT_CONTENT_SCOPE_FULL
+  onCommit: SNAPSHOT_CONTENT_SCOPE_FULL
+  storageLocation: gs://${S3_BUCKET}/substrate/mari/
+sandboxConfig:
+  sandboxClass: SANDBOX_CLASS_GVISOR
+  configName: gvisor-default

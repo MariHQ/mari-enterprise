@@ -18,7 +18,6 @@ export type AuthProject = { id: number; slug: string; name: string; role: string
 
 type AuthContextValue = {
   user: AuthUser | null;
-  needsSetup: boolean;
   bypassEnabled: boolean;
   registrationEnabled: boolean;
   oauth: OAuthAvailability;
@@ -32,7 +31,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
-  needsSetup: false,
   bypassEnabled: false,
   registrationEnabled: false,
   oauth: { github: false, google: false },
@@ -60,7 +58,6 @@ export async function authPost<T = any>(path: string, body: Record<string, unkno
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [needsSetup, setNeedsSetup] = useState(false);
   const [bypassEnabled, setBypassEnabled] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [oauth, setOauth] = useState<OAuthAvailability>({ github: false, google: false });
@@ -85,7 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // No async/await here: state updates live in .then callbacks so the initial
   // mount effect never sets state synchronously (react-hooks/set-state-in-effect),
-  // same style as useQuery's effect in api.ts.
   //
   // Resolves to the two facts a caller has to weigh together — who we are, and
   // whether this server offers the sign-in bypass — because reading them off
@@ -100,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then((data: any) => {
         const next = (data?.user ?? null) as AuthUser | null;
         applyUser(next);
-        setNeedsSetup(Boolean(data?.needsSetup));
         setBypassEnabled(Boolean(data?.bypassEnabled));
         setRegistrationEnabled(Boolean(data?.registrationEnabled));
         lastBypassEnabled.current = Boolean(data?.bypassEnabled);
@@ -126,12 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return load().then(() => setLoading(false));
   }, [load]);
 
-  /* There is deliberately no automatic POST /auth/bypass here. A demo server
-   * (`bypassEnabled`) offers a one-click way in, but it is a button on the
-   * sign-in screen, not something the app does to a visitor on arrival —
-   * every deployment shows the wall first, and signing out lands on it and
-   * stays there. The server enforces the same line: with no cookie presented
-   * it resolves nobody, bypass or not (see server/auth.py). */
+  // Signing out clears the governance session and returns to the login gate.
   const logout = useCallback(async () => {
     try {
       await fetch("/auth/logout", { method: "POST", headers: projectHeaders() });
@@ -171,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [recheck]);
 
   return (
-    <AuthContext.Provider value={{ user, needsSetup, bypassEnabled, registrationEnabled, oauth, projects, activeProject: active, selectProject, loading, refresh, logout }}>
+    <AuthContext.Provider value={{ user, bypassEnabled, registrationEnabled, oauth, projects, activeProject: active, selectProject, loading, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );

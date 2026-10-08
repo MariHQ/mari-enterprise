@@ -1,0 +1,4 @@
+Agent Substrate API schema, Apache-2.0.
+https://github.com/agent-substrate/substrate
+Revision: 672533541dbfcd29084e4de2475267088bda3651
+Python bindings are generated during the platform image build.

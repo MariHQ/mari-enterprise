@@ -1,0 +1,17 @@
+# Shared version constraints. Each service selects its own dependencies.
+fastapi==0.115.12
+uvicorn==0.34.2
+psycopg[binary]==3.2.9
+httpx==0.28.1
+boto3==1.38.23
+confluent-kafka==2.10.0
+temporalio==1.12.0
+numpy==2.2.6
+
+duckdb==1.5.5
+pyiceberg==0.11.1
+sqlglot==28.10.1
+pymysql==1.1.2
+weaviate-client==4.23.1
+grpcio-tools==1.76.0
+PyYAML==6.0.3

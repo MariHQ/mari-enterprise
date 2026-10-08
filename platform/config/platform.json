@@ -1,0 +1,37 @@
+{
+  "knowledge": {
+    "backend": "duckdb",
+    "project_id": "1"
+  },
+  "quickwit": {
+    "enabled": false
+  },
+  "vectors": {
+    "enabled": false,
+    "mode": "dense",
+    "provider": "openai",
+    "endpoint": "https://api.openai.com/v1/embeddings",
+    "model": "text-embedding-3-small",
+    "api_key_env": "OPENAI_API_KEY",
+    "topics": [
+      "mari.knowledge"
+    ]
+  },
+  "compaction": {
+    "enabled": true,
+    "every_minutes": 15
+  },
+  "flink": {
+    "state": "running"
+  },
+  "cdc": {
+    "enabled": false
+  },
+  "temporal": {
+    "enabled": true
+  },
+  "lake": {
+    "topic_pattern": "mari\\.records\\..+",
+    "partition_rules": []
+  }
+}

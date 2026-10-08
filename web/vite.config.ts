@@ -46,11 +46,7 @@ const sharedAliases = SHARED_DEPS.flatMap((name) => {
 
 const API = "http://localhost:8000";
 /** Everything the FastAPI server owns; the rest is this SPA. Mirrors nginx.conf. */
-const API_ROUTES = [
-  "/graphql", "/chat", "/agent", "/healthz", "/sites",
-  "/auth", "/bots", "/webhooks", "/onboard", "/connectors", "/knowledge-chat-api", "/api",
-  "/scim", "/mcp",
-];
+const API_ROUTES = ["/auth", "/api", "/healthz"];
 
 export default defineConfig({
   plugins: [react()],

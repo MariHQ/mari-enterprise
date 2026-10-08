@@ -1,6 +1,0 @@
-apiVersion: v2
-name: mari
-description: Self-contained Mari deployment with PostgreSQL and persistent application data
-type: application
-version: 0.2.3
-appVersion: "0.2.3"

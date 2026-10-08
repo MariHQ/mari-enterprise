@@ -1,10 +1,4 @@
-/* Server-renders the pages that have real adapters, from mapped mock API
- * responses. This is the only runtime check available without Postgres, and it
- * catches what `tsc` cannot: a mapper that satisfies the type but hands the
- * page something it will not render (a status string outside the library's
- * vocabulary, a pre-formatted date, an empty state that never fires).
- *
- * Run: npm run smoke */
+/* Render platform presenters and validate explicit missing-mapping states. */
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";

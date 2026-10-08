@@ -1,0 +1,7 @@
+# Full local development environment; container images use service-specific lists.
+-r governance/requirements.txt
+-r runtime/requirements.txt
+-r indexing/requirements.txt
+-r knowledge/requirements.txt
+-r scripts/requirements.txt
+-r requirements-build.txt

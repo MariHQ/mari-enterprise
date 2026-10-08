@@ -1,6 +1,6 @@
-/* Adapters for the two unauthenticated pages.
+/* Login page adapter.
  *
- * Neither reads GraphQL: everything they render comes from `/auth/me`, which
+ * Session state comes from `/auth/me`, which
  * the auth context already fetches once for the whole app. What is left is
  * screen state (which step, which fields are prefilled), and that is local —
  * the pages take it as data so the design canvas can drive the same
@@ -8,7 +8,6 @@
 
 import { useSearchParams } from "react-router-dom";
 import type { LoginData, LoginProvider } from "@mari-design/components/pages/LoginPage";
-import type { SetupData } from "@mari-design/components/pages/SetupPage";
 import { useAuth } from "../lib/auth";
 import type { PageData } from "./types";
 
@@ -57,7 +56,7 @@ export function useLogin(): PageData<LoginData> {
   const { oauth, loading, bypassEnabled, registrationEnabled } = useAuth();
 
   const [params] = useSearchParams();
-  const invited = params.has("invite");
+  const invited = false;
   const register = invited || (registrationEnabled && params.get("register") === "1");
   const screen: LoginData["screen"] = "credentials";
 
@@ -66,17 +65,4 @@ export function useLogin(): PageData<LoginData> {
      places, and its failure surfaces through the page's own action handling. */
   return { data: buildLogin(oauth, screen, register, "", bypassEnabled,
     registrationEnabled || invited), loading, error: null };
-}
-
-/** Pure: whether first-run claiming has happened → everything Setup renders. */
-export function buildSetup(needsSetup: boolean): SetupData {
-  return {
-    step: needsSetup ? "admin" : "done",
-    name: "", email: "", password: "", workspace: "",
-  };
-}
-
-export function useSetup(): PageData<SetupData> {
-  const { needsSetup, loading } = useAuth();
-  return { data: buildSetup(needsSetup), loading, error: null };
 }
