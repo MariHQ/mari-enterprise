@@ -21,6 +21,13 @@ spec:
         env:
         - name: MARI_KNOWLEDGE_PROJECT_ID
           value: '1'
+        - name: MARI_SOURCES_URL
+          value: http://mari-sources.mari-platform.svc.cluster.local
+        - name: MARI_APP_GRANT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: sources-app-auth
+              key: MARI_APP_GRANT_SECRET
         - name: MARI_STATIC_DIR
           value: /app/static
         - name: KAFKA_BOOTSTRAP_SERVERS

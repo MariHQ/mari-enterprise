@@ -188,6 +188,41 @@ async def schedule_command(schedule_id:str, body:ScheduleCommand, actor:str=Depe
         raise HTTPException(503,'Temporal did not acknowledge the schedule command') from None
     return {'accepted':True,'applied_to_graph':False,'operation':body.operation,'schedule_id':schedule_id}
 
+# Independent Sources app: Mari owns session and navigation; the app owns reads.
+@app.post('/api/apps/sources/grant')
+def sources_grant(request: Request, actor: str = Depends(authenticated)):
+    secret = os.environ.get('MARI_APP_GRANT_SECRET', '')
+    if len(secret) < 32:
+        raise HTTPException(503, 'Sources app authentication binding is missing')
+    claims = {'aud': 'sources', 'sub': actor, 'project': scope(), 'exp': int(time.time()) + 180}
+    body = base64.urlsafe_b64encode(json.dumps(claims, separators=(',', ':')).encode()).decode().rstrip('=')
+    sig = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+    return {'grant': body + '.' + sig}
+
+
+@app.get('/apps/sources/{path:path}')
+async def sources_app(path: str, request: Request, actor: str = Depends(authenticated)):
+    import httpx
+    # This is an app mount, not an arbitrary service proxy. No write methods.
+    if '..' in path.split('/') or path.startswith('/'):
+        raise HTTPException(400, 'Invalid app path')
+    url = os.environ.get('MARI_SOURCES_URL', '').rstrip('/')
+    if not url:
+        raise HTTPException(503, 'Sources app deployment binding is missing')
+    headers = {}
+    if path == 'api/status':
+        headers['Authorization'] = request.headers.get('Authorization', '')
+    try:
+        async with httpx.AsyncClient(timeout=40) as client:
+            upstream = await client.get(url + '/' + path, headers=headers)
+    except httpx.RequestError:
+        raise HTTPException(503, 'Sources app is unavailable') from None
+    return Response(upstream.content, status_code=upstream.status_code,
+                    headers={'Content-Type': upstream.headers.get('Content-Type', 'application/octet-stream'),
+                             'Cache-Control': 'no-store',
+                             'Content-Security-Policy': "frame-ancestors 'self'"})
+
+
 # Forward only the Knowledge API's read surfaces; writes remain Kafka commands.
 @app.api_route('/api/{path:path}', methods=['GET', 'POST'], dependencies=[Depends(authenticated)])
 async def knowledge_read(path: str, request: Request):

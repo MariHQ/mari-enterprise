@@ -83,12 +83,31 @@ def main():
     connector_values={key:os.environ[key] for key in ('GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_TEAM_ID','SLACK_CHANNELS') if os.getenv(key)}
     if connector_values:
         apply({'apiVersion':'v1','kind':'Secret','metadata':{'name':'connector-secrets','namespace':'mari-platform'},'stringData':connector_values})
+    existing=json.loads(subprocess.check_output(kubectl+['-n','flux-system','get','kustomizations','-o','json']))
+    for item in existing['items']:
+        spec=item['spec']
+        if spec.get('sourceRef',{}).get('name')!='mari-platform':continue
+        stage=spec.get('path','').rstrip('/').rsplit('/',1)[-1]
+        if not (release/stage/'kustomization.yaml').exists():
+            raise RuntimeError(f'Release is missing existing stage {stage}')
     digest=hashlib.sha256()
     files=sorted(f for f in release.rglob('*') if f.is_file())
     for f in files:digest.update(str(f.relative_to(release)).encode()+b'\0'+f.read_bytes())
     revision=digest.hexdigest()[:16];prefix=f'flux/releases/{revision}'
     subprocess.run(['aws','--profile',cloud['profile'],'s3','sync',str(release),f's3://{cloud["bucket"]}/{prefix}/','--only-show-errors'],check=True)
     apply({'apiVersion':'source.toolkit.fluxcd.io/v1','kind':'Bucket','metadata':{'name':'mari-platform','namespace':'flux-system'},'spec':{'interval':'1m','provider':'aws','bucketName':cloud['bucket'],'endpoint':f's3.{cloud["region"]}.amazonaws.com','region':cloud['region'],'prefix':prefix+'/','secretRef':{'name':'mari-source-s3'}}})
+    # The Bucket artifact changes for every release. Unselected stages still
+    # need paths into that artifact; otherwise a partial rollout strands their
+    # dependencies on paths from the previous release.
+    for item in existing['items']:
+        spec=item['spec']
+        if spec.get('sourceRef',{}).get('name')!='mari-platform':continue
+        stage=spec.get('path','').rstrip('/').rsplit('/',1)[-1]
+        if stage in a.stages.split(','):continue
+        if not (release/stage/'kustomization.yaml').exists():
+            raise RuntimeError(f'Partial release is missing existing stage {stage}')
+        subprocess.run(kubectl+['-n','flux-system','patch','kustomization',item['metadata']['name'],
+            '--type=merge','-p',json.dumps({'spec':{'path':f'./{prefix}/{stage}'}})],check=True,stdout=subprocess.DEVNULL)
     stages={'operators':[], 'substrate-crds':[], 'infrastructure':[],
             'streaming':['operators','infrastructure'], 'substrate-system':['substrate-crds'],
             'agent':['substrate-system'], 'apps':['streaming','infrastructure','agent']}

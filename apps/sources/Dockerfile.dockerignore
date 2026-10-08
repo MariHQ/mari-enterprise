@@ -1,0 +1,15 @@
+old
+**/.git
+**/node_modules
+**/.venv
+**/var
+**/.runtime
+**/__pycache__
+**/target
+**/dist
+**/.env
+**/.env.*
+**/artifacts
+.platform-state
+.platform-tools
+.platform-venv

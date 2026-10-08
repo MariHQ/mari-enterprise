@@ -1,7 +1,8 @@
 # Shared version constraints. Each service selects its own dependencies.
 fastapi==0.115.12
 uvicorn==0.34.2
-psycopg[binary]==3.2.9
+psycopg==3.2.9
+psycopg-binary==3.2.9
 httpx==0.28.1
 boto3==1.38.23
 confluent-kafka==2.10.0

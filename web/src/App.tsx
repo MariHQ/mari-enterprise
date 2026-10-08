@@ -1,8 +1,10 @@
+import { authenticatedFetch, projectHeaders } from './lib/api';
+import { ReadError } from '@mari-design/components/feedback/ReadError';
 import { pageReadError } from './data/requirements';
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { PAGES, type PageModule } from "@mari-design/components/pages";
-import { landingPageFor, type ShellChrome } from "@mari-design/components/pages/PageFrame";
+import { PageFrame, landingPageFor, type ShellChrome } from "@mari-design/components/pages/PageFrame";
 import { NavProvider } from "@mari-design/components/navigation/Link";
 import { adapterFor } from "./data";
 import { STUBBED } from "./data/stubs";
@@ -107,7 +109,35 @@ function routeFor(page: PageModule<any, any>) {
   };
 }
 
-const ROUTES = APP_PAGES.map((page) => ({ page, Element: routeFor(page) }));
+function SourcesAppRoute() {
+  const chrome = useShellChrome();
+  const { activeProject } = useAuth();
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    const grant = async () => {
+      try {
+        const response = await authenticatedFetch('/api/apps/sources/grant', {method:'POST', headers:projectHeaders()});
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.detail || 'Sources app authentication failed');
+        if (!disposed) { frame.current?.contentWindow?.postMessage({type:'mari:app-grant',app:'sources',grant:body.grant},window.location.origin); setError(null); }
+      } catch (e) { if (!disposed) setError(e instanceof Error ? e.message : String(e)); }
+    };
+    const receive = (event:MessageEvent) => {
+      if(event.origin===window.location.origin && event.source===frame.current?.contentWindow && event.data?.type==='mari:app-ready' && event.data.app==='sources') void grant();
+    };
+    window.addEventListener('message',receive);
+    const timer=window.setInterval(()=>void grant(),120000);
+    return ()=>{disposed=true;window.clearInterval(timer);window.removeEventListener('message',receive);};
+  },[activeProject?.id]);
+  return <PageFrame chrome={chrome} active="sources" title="Sources & connectors" mobile={useIsMobile()}>
+    {error && <ReadError>{error}</ReadError>}
+    <iframe ref={frame} key={activeProject?.id} title="Sources & connectors" src="/apps/sources/" className="h-full min-h-[700px] w-full border-0"/>
+  </PageFrame>;
+}
+
+const ROUTES = APP_PAGES.map((page) => ({ page, Element: page.id==='sources' ? SourcesAppRoute : routeFor(page) }));
 
 /** Session gate. While `/auth/me` is in flight nothing renders — showing the
  *  login screen for a beat and then swapping it for the console is worse than

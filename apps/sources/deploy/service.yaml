@@ -1,0 +1,43 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: mari-sources
+  namespace: mari-platform
+  labels:
+    networking.knative.dev/visibility: cluster-local
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: '0'
+        autoscaling.knative.dev/max-scale: '2'
+    spec:
+      containerConcurrency: 20
+      containers:
+      - image: localhost:5001/mari-sources:local
+        ports:
+        - containerPort: 8080
+        env:
+        - name: KNOWLEDGE_API_URL
+          value: http://knowledge-api:8000
+        - name: MARI_KNOWLEDGE_PROJECT_ID
+          value: '1'
+        - name: MARI_SERVICE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: platform-secrets
+              key: MARI_SERVICE_TOKEN
+        - name: MARI_APP_GRANT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: sources-app-auth
+              key: MARI_APP_GRANT_SECRET
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz

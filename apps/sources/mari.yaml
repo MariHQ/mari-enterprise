@@ -1,0 +1,10 @@
+name: sources
+route: /sources
+# This information-only app reuses existing collectors and owns no streams.
+topics: []
+reads:
+  topics:
+    - mari.records.temporal.temporal_connector
+    - mari.records.temporal.webhook_connector
+  nodes: [Record]
+  edges: [polls, ingested]
