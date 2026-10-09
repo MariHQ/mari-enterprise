@@ -72,6 +72,11 @@ spec:
   prune: false
   wait: true
   timeout: 10m
+  healthCheckExprs:
+  - apiVersion: flink.apache.org/v1beta1
+    kind: FlinkDeployment
+    failed: has(status.lifecycleState) && status.lifecycleState == 'FAILED'
+    current: has(status.jobStatus) && status.jobStatus.state == 'RUNNING' && status.lifecycleState == 'STABLE'
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
