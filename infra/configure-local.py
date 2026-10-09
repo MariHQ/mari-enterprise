@@ -5,6 +5,7 @@ import base64
 import json
 from pathlib import Path
 import secrets
+import re
 import shlex
 import subprocess
 import yaml
@@ -31,6 +32,9 @@ def maintenance_allowlist():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--origin',default='http://mari-container.stack.127.0.0.1.sslip.io:8084')
+    parser.add_argument('--enable-mining',action='store_true')
+    parser.add_argument('--miner-image',help='Registry image pinned by sha256 digest')
+    parser.add_argument('--enable-ax-observation',action='store_true')
     args=parser.parse_args()
     allowlist=maintenance_allowlist()
     polaris=existing('polaris')
@@ -39,7 +43,6 @@ def main():
     runtime=existing('mari-runtime')
     for key in ('MARI_SESSION_SECRET','MARI_APP_GRANT_SECRET'):runtime.setdefault(key,secrets.token_urlsafe(48))
     runtime['MARI_PUBLIC_ORIGIN']=args.origin
-    apply('mari-runtime',runtime)
     worker=existing('mari-worker')
     allow={'GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_TEAM_ID','SLACK_CHANNELS','MARI_KNOWLEDGE_PROJECT_ID','AX_MINER_IMAGE','CLAUDE_CODE_OAUTH_TOKEN'}
     path=ROOT/'temporal/.env'
@@ -55,8 +58,20 @@ def main():
     worker.update({'TEMPORAL_ADDRESS':'temporal.stack.svc:7233','TEMPORAL_NAMESPACE':'default','TEMPORAL_TASK_QUEUE':'mari','KAFKA_BOOTSTRAP_SERVERS':'kafka-kafka-bootstrap.stack.svc:9092','ORCHID_GRAPH':'decisions'})
     # Maintenance is explicitly limited to the declaration; paid model execution remains opt-in.
     for key in ('DECISION_MINING_ENABLED','AX_OBSERVATION_ENABLED'):worker.setdefault(key,'false')
+    if args.miner_image:
+        if not re.fullmatch(r'[^\s@]+@sha256:[0-9a-f]{64}',args.miner_image):
+            raise ValueError('Miner image must be pinned by sha256 digest')
+        worker['AX_MINER_IMAGE']=args.miner_image
+    if args.enable_mining:
+        if not worker.get('CLAUDE_CODE_OAUTH_TOKEN') or not worker.get('AX_MINER_IMAGE'):
+            raise ValueError('Mining requires the Claude token and a pinned miner image')
+        worker['DECISION_MINING_ENABLED']='true'
+    if args.enable_ax_observation:
+        worker['AX_OBSERVATION_ENABLED']='true'
+        worker['AX_TRAJECTORY_ROOTS']='["/workspace/mari-trajectories"]'
     worker.update({'ICEBERG_COMPACTION_ENABLED':'true','ICEBERG_COMPACTION_MINUTES':'15',
                    'ICEBERG_MAINTENANCE_TABLES':allowlist})
+    apply('mari-runtime',runtime)
     apply('mari-iceberg-catalog',{'ICEBERG_REST_URI':'http://polaris.stack.svc:8181/api/catalog',
           'ICEBERG_WAREHOUSE':'lake','ICEBERG_OAUTH_SCOPE':'PRINCIPAL_ROLE:ALL',
           'ICEBERG_CREDENTIAL':polaris['credential']})

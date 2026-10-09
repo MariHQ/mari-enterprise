@@ -32,6 +32,34 @@ def discover_tables(spark):
     return sorted(found)
 
 
+def manifest_replaced_concurrently(error):
+    """Only the known failed optimistic validation is safe to re-plan here."""
+    java_error = getattr(error, 'java_exception', None)
+    if java_error is None:
+        return False
+    if java_error.getClass().getName() != 'org.apache.iceberg.exceptions.ValidationException':
+        return False
+    return re.fullmatch(r'Deleted manifest .+ could not be found in the latest snapshot [0-9]+',
+                        java_error.getMessage() or '') is not None
+
+
+def rewrite_manifests(spark, identifier, procedure_table):
+    # Flink can replace manifests between Spark planning and commit. Rebuild only
+    # this optional optimization; never replay data rewrites or ignore unknown commits.
+    for attempt in range(3):
+        try:
+            spark.sql(f"CALL mari.system.rewrite_manifests(table => '{procedure_table}')").show(truncate=False)
+            return True
+        except Exception as error:
+            if not manifest_replaced_concurrently(error):
+                raise
+            if attempt == 2:
+                print(f"Deferred manifest rewrite for {procedure_table}: concurrent ingestion replaced manifests on all 3 attempts")
+                return False
+            spark.catalog.refreshTable(identifier)
+            print(f"Retrying manifest rewrite for {procedure_table} after concurrent ingestion (attempt {attempt + 2}/3)")
+
+
 def maintain(spark, table):
     from dangling import remove_obsolete_deletes
     # Restrict identifiers before constructing maintenance SQL.
@@ -60,7 +88,7 @@ def maintain(spark, table):
         spark._jsparkSession, identifier)
     removed = remove_obsolete_deletes(iceberg_table, spark._jvm.org.apache.iceberg.ManifestFiles)
     print(f"Removed {removed} obsolete delete-file references; retained snapshots and S3 files are unchanged.")
-    spark.sql(f"CALL mari.system.rewrite_manifests(table => '{procedure_table}')").show(truncate=False)
+    rewrite_manifests(spark, identifier, procedure_table)
     return True
 
 

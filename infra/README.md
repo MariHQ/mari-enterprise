@@ -27,5 +27,11 @@ The release pins image digests and includes only rendered manifests; credentials
 source trees, and local state are not bundled. Run `python infra/configure-local.py` first to install runtime Secrets from the
 ignored local environment, preserving existing session keys. It does not log
 credentials. Source polling uses the configured GitHub/Slack credentials; paid
-mining and maintenance remain separately disabled by default.
+mining remains disabled until explicitly enabled. Maintenance is restricted to
+the current/history tables declared in `flink/ingestion.yaml`.
+Use `--enable-mining --miner-image <registry/image@sha256:digest>` with the
+existing Claude subscription token to enable decision extraction, and
+`--enable-ax-observation` to collect the miner's existing traces. Restart the
+Temporal worker after changing its Secret, then run `temporal.bootstrap` with
+`TEMPORAL_JOBS_ENABLED=true` to register the enabled flows.
 The last stage starts the Temporal worker and its explicitly configured jobs.
