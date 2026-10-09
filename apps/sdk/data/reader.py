@@ -39,8 +39,14 @@ def graph_snapshot(function):
     """Keep bounded multi-step graph reads on one resolved catalog and lake snapshot."""
     @wraps(function)
     def wrapped(*args,**kwargs):
-        with engine.session(os.getenv('MARI_KNOWLEDGE_PROJECT_ID','1')):
-            return function(*args,**kwargs)
+        try:
+            with engine.session(os.getenv('MARI_KNOWLEDGE_PROJECT_ID','1')):
+                return function(*args,**kwargs)
+        except HTTPException:
+            raise
+        except Exception:
+            logging.exception('Knowledge graph session failed')
+            raise HTTPException(503,'Knowledge query unavailable; retry shortly') from None
     return wrapped
 
 
