@@ -181,7 +181,7 @@ class CatalogLake:
                     names={table.name for table in tree.find_all(exp.Table)}
                     views.prepare(names)
                     if timer is None:
-                        timer=Timer(30,database.interrupt);timer.start()
+                        timer=Timer(60,database.interrupt);timer.start()
                     for name in names:views.ensure(name)
                     with super().query_arrow(compiled,batch_size) as result:
                         yield result
@@ -213,5 +213,5 @@ class CatalogLake:
         return active[2] if active is not None else catalog_manifest()
 
     def execute(self, query, parameters=None, language='cypher', project='1', limit=1000, physical_table=None):
-        with self.session(project,physical_table,materialize=False) as run:
+        with self.session(project,physical_table) as run:
             return run(query,parameters,language,limit)
