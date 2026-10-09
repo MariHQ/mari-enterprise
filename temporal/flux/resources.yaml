@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mari-temporal
+  namespace: stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mari-temporal}
+  template:
+    metadata:
+      labels: {app: mari-temporal}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: worker
+        image: mari-temporal:local
+        envFrom:
+        - secretRef: {name: mari-worker}
+        - secretRef: {name: aws-credentials}
+        env:
+        - {name: ORCHID_GRAPH, value: decisions}
+        - name: ORCHID_CATALOG_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef: {name: orchid-catalog, key: admin.secret}
+        - name: ICEBERG_CREDENTIAL
+          valueFrom:
+            secretKeyRef: {name: polaris, key: credential}
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {memory: 1Gi}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mari-temporal-register
+  namespace: stack
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+      - name: register
+        image: mari-temporal:local
+        command: [python, -m, temporal.bootstrap]
+        envFrom:
+        - secretRef: {name: mari-worker}
+        env:
+        - {name: TEMPORAL_JOBS_ENABLED, value: 'true'}

@@ -16,3 +16,16 @@ docker build -f mari/infra/ax/Claude.Dockerfile \
 
 `ax/proto/` contains the AX protocol definitions used by the `temporal/Dockerfile`
 worker image. Workflow and activity logic remains in `temporal/`.
+
+## Local Flux release
+
+After building the app base/apps, `flink/`, and `temporal/` images, run
+`python infra/release-local.py` from Mari to publish them to the existing local
+registry and render a reviewable release. `--apply` also activates the release's
+Flux source and dependency stages. It never compiles OrchidDB or pushes to GitHub.
+The release pins image digests and includes only rendered manifests; credentials,
+source trees, and local state are not bundled. Run `python infra/configure-local.py` first to install runtime Secrets from the
+ignored local environment, preserving existing session keys. It does not log
+credentials. Source polling uses the configured GitHub/Slack credentials; paid
+mining and maintenance remain separately disabled by default.
+The last stage starts the Temporal worker and its explicitly configured jobs.
