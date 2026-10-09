@@ -33,7 +33,7 @@ def bind(database, manifest, project, physical_table=None):
     """Only published physical table references determine what an app can read."""
     from pyiceberg.catalog import load_catalog
     from apps.sdk.catalog_config import catalog_properties
-    current_parts=[];history_parts=[]
+    current_parts=[];history_parts=[];empty_parts={}
     objects=manifest['objects']
     definitions=objects.values() if isinstance(objects,dict) else objects
     selected=[]
@@ -81,7 +81,12 @@ def bind(database, manifest, project, physical_table=None):
         alias=definition.get('table')
         if alias:
             database.execute('CREATE TEMP VIEW "'+alias.replace('"','""')+'" AS '+projection)
-        (history_parts if namespace==['mari_history'] else current_parts).append(projection)
+        if table.current_snapshot() is None:
+            empty_parts.setdefault(namespace[0],projection)
+        else:
+            (history_parts if namespace==['mari_history'] else current_parts).append(projection)
+    if not current_parts and 'mari_streams' in empty_parts:current_parts.append(empty_parts['mari_streams'])
+    if not history_parts and 'mari_history' in empty_parts:history_parts.append(empty_parts['mari_history'])
     if not current_parts or not history_parts: raise ValueError('Current and history datasets must be published before app reads')
     database.execute('CREATE TEMP VIEW history AS '+ ' UNION ALL '.join(history_parts))
     database.execute('CREATE TEMP VIEW graph_records AS '+ ' UNION ALL '.join(current_parts))

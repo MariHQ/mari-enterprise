@@ -12,7 +12,7 @@ public final class SchemaApply {
   public static String required(String key) {String v=System.getenv(key);if(v==null||v.isBlank())throw new IllegalArgumentException("Missing "+key);return v;}
   public static CatalogLoader loader() {
     String uri=required("POLARIS_URI");
-    return CatalogLoader.custom("mari",Map.of("uri",uri,"warehouse",System.getenv().getOrDefault("POLARIS_WAREHOUSE","lake"),"credential",required("POLARIS_CREDENTIAL"),"scope","PRINCIPAL_ROLE:ALL","oauth2-server-uri",uri+"/v1/oauth/tokens","io-impl","org.apache.iceberg.aws.s3.S3FileIO","client.region",required("AWS_REGION")),new org.apache.hadoop.conf.Configuration(),"org.apache.iceberg.rest.RESTCatalog");
+    return CatalogLoader.custom("mari",Map.of("uri",uri,"warehouse",System.getenv().getOrDefault("POLARIS_WAREHOUSE","lake"),"credential",required("POLARIS_CREDENTIAL"),"scope","PRINCIPAL_ROLE:ALL","oauth2-server-uri",uri+"/v1/oauth/tokens","io-impl","org.apache.iceberg.aws.s3.S3FileIO","client.region",required("AWS_REGION")),new org.apache.hadoop.conf.Configuration(),"local.mari.MariCatalog");
   }
   public static void validate(Table table,IngestionConfig c,String mode) {
     if(!table.schema().sameSchema(c.schema(mode)))throw new IllegalStateException("Incompatible schema or primary key: "+table.name());

@@ -27,7 +27,7 @@ def main():
     runtime['MARI_PUBLIC_ORIGIN']=args.origin
     apply('mari-runtime',runtime)
     worker=existing('mari-worker')
-    allow={'GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_CHANNELS','MARI_KNOWLEDGE_PROJECT_ID','AX_MINER_IMAGE','CLAUDE_CODE_OAUTH_TOKEN'}
+    allow={'GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_TEAM_ID','SLACK_CHANNELS','MARI_KNOWLEDGE_PROJECT_ID','AX_MINER_IMAGE','CLAUDE_CODE_OAUTH_TOKEN'}
     path=ROOT/'temporal/.env'
     if path.exists():
         for number,line in enumerate(path.read_text().splitlines(),1):
