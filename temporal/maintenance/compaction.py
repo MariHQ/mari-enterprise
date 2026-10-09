@@ -18,9 +18,12 @@ class CompactIceberg:
             retry_policy=RetryPolicy(initial_interval=timedelta(seconds=30),maximum_attempts=3))
 
 
-def job_spec(request):
+def job_spec(request, candidates=None):
     table=request.get('table')
-    maintenance_tables(table)
+    allowed=maintenance_tables(table)
+    selected=allowed if candidates is None else list(dict.fromkeys(candidates))
+    if not selected or not set(selected).issubset(allowed):
+        raise ValueError('Maintenance candidates must be a nonempty subset of the allowlist')
     if table is not None and not re.fullmatch(r'[a-zA-Z_][a-zA-Z_0-9]*\.[a-zA-Z0-9_.-]+',table):
         raise ValueError('Invalid table')
     name='iceberg-compact-'+hashlib.sha256(((table or 'all')+request['run_id']).encode()).hexdigest()[:20]
@@ -28,21 +31,24 @@ def job_spec(request):
         'backoffLimit':2,'activeDeadlineSeconds':6600,'ttlSecondsAfterFinished':300,
         'template':{'metadata':{'labels':{'app':'iceberg-compaction'}},'spec':{'restartPolicy':'Never',
         'automountServiceAccountToken':False,'containers':[{'name':'rewrite','image':os.environ['COMPACTION_IMAGE'],
-            'args':[table] if table else [],'env':[{'name':'ICEBERG_MAINTENANCE_TABLES','value':','.join(maintenance_tables(table))}],'envFrom':[{'secretRef':{'name':os.getenv('COMPACTION_AWS_SECRET','aws-credentials')}},{'secretRef':{'name':os.getenv('COMPACTION_CATALOG_SECRET','mari-iceberg-catalog')}}],
-            'resources':{'requests':{'cpu':'500m','memory':'1Gi'},'limits':{'cpu':'2','memory':'3Gi'}}}]}}}}
+            'args':[table] if table else [],'env':[{'name':'ICEBERG_MAINTENANCE_TABLES','value':','.join(selected)}],'envFrom':[{'secretRef':{'name':os.getenv('COMPACTION_AWS_SECRET','aws-credentials')}},{'secretRef':{'name':os.getenv('COMPACTION_CATALOG_SECRET','mari-iceberg-catalog')}}],
+            'resources':{'requests':{'cpu':'100m','memory':'512Mi'},'limits':{'cpu':'1','memory':'1536Mi'}}}]}}}}
 
 
 def maintenance_required(request):
-    """Inspect manifests only; do not start Spark for an empty/healthy catalog."""
-    import json
+    """Return only eligible tables; healthy tables never reach Spark."""
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import local
     from pyiceberg.catalog import load_catalog
     from .rewrite import needs_maintenance
-    catalog=load_catalog('mari',**catalog_properties())
-    candidates=[tuple(value.split('.', 1)) for value in maintenance_tables(request.get('table'))]
-    for identifier in candidates:
-        table=catalog.load_table(identifier)
+    clients=local()
+    candidates=maintenance_tables(request.get('table'))
+    def inspect(name):
+        if not hasattr(clients,'catalog'):
+            clients.catalog=load_catalog('mari',**catalog_properties())
+        table=clients.catalog.load_table(tuple(name.split('.',1)))
         snapshot=table.current_snapshot()
-        if snapshot is None:continue
+        if snapshot is None:return None
         data=small=deletes=0
         manifests=snapshot.manifests(table.io)
         for manifest in manifests:
@@ -51,8 +57,9 @@ def maintenance_required(request):
                 if f.content==0:
                     data+=1;small+=int(f.file_size_in_bytes<67108864)
                 else:deletes+=1
-        if needs_maintenance(data,small,deletes,len(manifests)):return True
-    return False
+        return name if needs_maintenance(data,small,deletes,len(manifests)) else None
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        return [name for name in pool.map(inspect,candidates) if name is not None]
 
 
 async def preflight_with_heartbeats(request, interval=10):
@@ -76,11 +83,12 @@ async def compact_iceberg(request:dict):
     import httpx
     import asyncio
     from pathlib import Path
-    if not await preflight_with_heartbeats(request):
+    candidates=await preflight_with_heartbeats(request)
+    if not candidates:
         return {'table':request.get('table','all'),'status':'skipped','reason':'No maintenance needed'}
     token=Path('/var/run/secrets/kubernetes.io/serviceaccount/token').read_text()
     ca='/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
-    job=job_spec(request);name=job['metadata']['name']
+    job=job_spec(request,candidates);name=job['metadata']['name']
     base='https://kubernetes.default.svc/apis/batch/v1/namespaces/'+job['metadata']['namespace']+'/jobs'
     async with httpx.AsyncClient(verify=ca,headers={'Authorization':'Bearer '+token},timeout=30) as client:
         response=await client.post(base,json=job)

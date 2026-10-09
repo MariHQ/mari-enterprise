@@ -18,7 +18,7 @@ async def schedule():
     if os.getenv('TEMPORAL_JOBS_ENABLED', 'false') != 'true':
         return
     compaction_enabled = os.getenv('ICEBERG_COMPACTION_ENABLED', 'false') == 'true'
-    compaction_minutes = int(os.getenv('ICEBERG_COMPACTION_MINUTES', '15'))
+    compaction_minutes = int(os.getenv('ICEBERG_COMPACTION_MINUTES', '60'))
     if compaction_enabled:
         from temporal.maintenance.catalog import maintenance_tables
         maintenance_tables()

@@ -69,7 +69,7 @@ def main():
     if args.enable_ax_observation:
         worker['AX_OBSERVATION_ENABLED']='true'
         worker['AX_TRAJECTORY_ROOTS']='["/workspace/mari-trajectories"]'
-    worker.update({'ICEBERG_COMPACTION_ENABLED':'true','ICEBERG_COMPACTION_MINUTES':'15',
+    worker.update({'ICEBERG_COMPACTION_ENABLED':'true','ICEBERG_COMPACTION_MINUTES':'60',
                    'ICEBERG_MAINTENANCE_TABLES':allowlist})
     apply('mari-runtime',runtime)
     apply('mari-iceberg-catalog',{'ICEBERG_REST_URI':'http://polaris.stack.svc:8181/api/catalog',

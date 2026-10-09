@@ -5,4 +5,4 @@ ADD https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.11.0/
 COPY mari/temporal/maintenance/rewrite.py mari/temporal/maintenance/dangling.py mari/temporal/maintenance/catalog.py /opt/spark/
 RUN chmod 644 /opt/spark/jars/*.jar /opt/spark/rewrite.py /opt/spark/dangling.py /opt/spark/catalog.py
 USER 185
-ENTRYPOINT ["/opt/spark/bin/spark-submit", "/opt/spark/rewrite.py"]
+ENTRYPOINT ["/opt/spark/bin/spark-submit", "--master", "local[1]", "--driver-memory", "512m", "--conf", "spark.sql.shuffle.partitions=2", "--conf", "spark.default.parallelism=1", "--conf", "spark.ui.enabled=false", "/opt/spark/rewrite.py"]

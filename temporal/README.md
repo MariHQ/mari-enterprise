@@ -72,3 +72,10 @@ separate operations.
 
 Run `make check` from the workspace root for offline checks. Deployment,
 registration, and live ingestion remain separate explicitly authorized actions.
+
+Local maintenance runs hourly with overlap disabled. A bounded metadata preflight
+selects only tables with at least eight small files, eight delete files, or sixteen
+manifests. Healthy catalogs start no Spark Job. Selected tables are rechecked using
+native Iceberg metadata; Spark is used only for Iceberg rewrite actions, with one
+CPU, a 512 MiB JVM heap, two shuffle partitions, and a 1536 MiB pod memory limit.
+Delete semantics are applied by readers regardless of maintenance cadence.
