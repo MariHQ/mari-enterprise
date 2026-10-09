@@ -15,7 +15,13 @@ import org.apache.iceberg.flink.sink.dynamic.*;
 public final class MariGenerator implements DynamicRecordGenerator<KafkaEvent> {
   static final ObjectMapper JSON=new ObjectMapper();
   private final IngestionConfig config;
-  public MariGenerator(IngestionConfig config){this.config=config;}
+  private final Map<String,Schema> schemas;
+  private final Map<String,PartitionSpec> specs;
+  public MariGenerator(IngestionConfig config){
+    this.config=config;
+    schemas=Map.of("current",config.schema("current"),"history",config.schema("history"));
+    specs=Map.of("current",config.spec("current"),"history",config.spec("history"));
+  }
   static String required(JsonNode node,String name,int max) {
     JsonNode value=node.path(name);
     if(!value.isTextual()||value.textValue().isEmpty()||value.textValue().length()>max)throw new IllegalArgumentException("Invalid "+name);
@@ -50,7 +56,7 @@ public final class MariGenerator implements DynamicRecordGenerator<KafkaEvent> {
     for(String mode:List.of("current","history")) {
       var target=config.targets.get(mode);var row=GenericRowData.of(values.clone());
       row.setRowKind(mode.equals("current")&&op.equals("delete")?RowKind.DELETE:RowKind.INSERT);
-      var r=new DynamicRecord(TableIdentifier.of(target.namespace(),e.topic),"main",config.schema(mode),row,config.spec(mode),DistributionMode.HASH,1);
+      var r=new DynamicRecord(TableIdentifier.of(target.namespace(),e.topic),"main",schemas.get(mode),row,specs.get(mode),DistributionMode.HASH,1);
       r.setUpsertMode(true);r.setEqualityFields(new HashSet<>(target.primaryKey()));out.collect(r);
     }
   }

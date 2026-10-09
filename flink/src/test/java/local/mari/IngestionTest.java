@@ -19,6 +19,13 @@ class IngestionTest {
  static List<DynamicRecord> generate(KafkaEvent e) throws Exception {
   List<DynamicRecord> out=new ArrayList<>();new MariGenerator(config()).generate(e,new Collector<>(){public void collect(DynamicRecord r){out.add(r);}public void close(){}});return out;
  }
+ @Test void reusesSinkSchemasAcrossRecords() throws Exception {
+  var generator=new MariGenerator(config());var out=new ArrayList<DynamicRecord>();
+  Collector<DynamicRecord> collector=new Collector<>(){public void collect(DynamicRecord r){out.add(r);}public void close(){}};
+  generator.generate(event("upsert"),collector);generator.generate(event("delete"),collector);
+  assertSame(out.get(0).schema(),out.get(2).schema());
+  assertSame(out.get(1).schema(),out.get(3).schema());
+ }
  @Test void currentDeleteAndHistoryAreDistinct() throws Exception {
   var insert=generate(event("upsert"));assertEquals(2,insert.size());assertEquals(RowKind.INSERT,insert.get(0).rowData().getRowKind());
   var deleted=generate(event("delete"));assertEquals(RowKind.DELETE,deleted.get(0).rowData().getRowKind());assertEquals(RowKind.INSERT,deleted.get(1).rowData().getRowKind());

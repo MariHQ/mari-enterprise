@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 
 MARI=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(MARI))
-from apps.sdk.catalog_lake import bind
+from apps.sdk.catalog_lake import bind,LazyViews
 from apps.sdk.provision import definitions,topics,table_name
 
 class BindingsTests(unittest.TestCase):
@@ -27,13 +27,14 @@ class BindingsTests(unittest.TestCase):
             tables={};objects={};topic='mari.records.mari.fact'
             for namespace,values in [('mari_streams',[rows[i] for i in (1,2,5)]),('mari_history',rows)]:
                 path=Path(tmp)/(namespace+'.parquet');pq.write_table(pa.Table.from_pylist(values),path)
-                tables[(namespace,topic)]=SimpleNamespace(metadata_location=str(path),metadata=SimpleNamespace(table_uuid=namespace,current_schema_id=0))
+                tables[(namespace,topic)]=SimpleNamespace(current_snapshot=lambda count=len(values):SimpleNamespace(summary={'total-records':str(count)}),metadata_location=str(path),metadata=SimpleNamespace(table_uuid=namespace,current_schema_id=0))
                 objects[namespace]={'definition':{'iceberg':{'namespace':[namespace],'table':topic,'table_uuid':namespace}}}
             database=duckdb.connect()
             class LocalFiles:
                 def execute(self,sql):return database.execute(sql.replace('iceberg_scan(', 'read_parquet('))
             with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])):
-                bind(LocalFiles(),{'objects':objects},'1')
+                views=LazyViews(LocalFiles());bind(views,{'objects':objects},'1')
+                for name in views.statements:views.ensure(name)
             self.assertEqual(database.execute('SELECT record_id,title FROM graph_records ORDER BY record_id').fetchall(),[('a','new'),('b','evidence')])
             self.assertEqual(database.execute('SELECT from_id,to_id FROM edge_supported_by').fetchall(),[('a','b')])
             self.assertEqual(database.execute('SELECT count(*) FROM history').fetchone()[0],5)

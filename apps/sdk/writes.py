@@ -3,7 +3,7 @@ import os
 import json
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from apps.sdk.data import reader
 from apps.sdk.data.ingestion import publish_changes
 from apps.sdk.data.records import KnowledgeChange, command_id
@@ -23,6 +23,13 @@ class WriteInput(BaseModel):
     properties:dict[str,Any]=Field(default_factory=dict)
     expected_revision:str|None=None
 
+    @model_validator(mode='after')
+    def declared_destination(self):
+        from apps.sdk.provision import topics
+        if self.table not in topics() or self.table != 'mari.records.'+self.source+'.'+self.kind:
+            raise ValueError('Record source and kind must match a declared ingestion topic')
+        return self
+
 
 def publish(body:WriteInput,request_id:str,actor:str,operation='upsert'):
     if not request_id or len(request_id)>128:raise HTTPException(400,'An Idempotency-Key is required')
@@ -33,8 +40,11 @@ def publish(body:WriteInput,request_id:str,actor:str,operation='upsert'):
         if existing['event_id']!=body.expected_revision:raise HTTPException(409,'This record changed; reload before editing')
     # Revision checking catches already-visible stale edits. Concurrent accepted
     # commands are ordered by Kafka, not a cross-system compare-and-swap.
-    event=KnowledgeChange(**body.model_dump(exclude={'expected_revision'}),project_id=scope(),actor=actor,
-        operation=operation,event_id=command_id(scope(),actor,request_id,{'operation':operation,**body.model_dump()}))
+    try:
+        event=KnowledgeChange(**body.model_dump(exclude={'expected_revision'}),project_id=scope(),actor=actor,
+            operation=operation,event_id=command_id(scope(),actor,request_id,{'operation':operation,**body.model_dump()}))
+    except ValidationError:
+        raise HTTPException(422,'Record does not satisfy the ingestion schema') from None
     from apps.sdk.data.changes import attributed_changes
     try:receipts=publish_changes(attributed_changes(event))
     except Exception:raise HTTPException(503,'Change was not acknowledged; retry with the same Idempotency-Key') from None
@@ -48,7 +58,11 @@ def save(body:WriteInput,actor:str=Depends(actor_identity),idempotency_key:str=H
 
 @router.delete('/api/record',status_code=202)
 def retract(id:str,table:str,actor:str=Depends(actor_identity),idempotency_key:str=Header(default='')):
-    return publish(WriteInput(table=table,record_id=id),idempotency_key,actor,'delete')
+    from apps.sdk.data.mappings import route_for
+    from apps.sdk.provision import topics
+    route=route_for(table)
+    if table not in topics() or route is None:raise HTTPException(422,'Unknown ingestion table')
+    return publish(WriteInput(table=table,record_id=id,source=route[0],kind=route[1]),idempotency_key,actor,'delete')
 
 
 class EdgeInput(BaseModel):

@@ -1,11 +1,15 @@
 """Bind catalog-declared Flink current/history tables to original Mari projections."""
 from contextlib import contextmanager
 import json
+import sqlglot
+from sqlglot import exp
 from contextvars import ContextVar
 from concurrent.futures import ThreadPoolExecutor
 from threading import local
 from apps.sdk.graph import JSON_PROPERTIES
+from apps.sdk.iceberg_files import snapshot_source
 import os
+import tempfile
 from threading import BoundedSemaphore, Timer
 import duckdb
 import httpx
@@ -54,10 +58,11 @@ def bind(database, manifest, project, physical_table=None):
         if not hasattr(clients,'catalog'):
             clients.catalog=load_catalog('mari', **catalog_properties())
         iceberg=definition['iceberg']
-        return clients.catalog.load_table((*iceberg['namespace'],iceberg['table']))
+        table=clients.catalog.load_table((*iceberg['namespace'],iceberg['table']))
+        return table,snapshot_source(table)
     with ThreadPoolExecutor(max_workers=8) as pool:
         tables=list(pool.map(load,selected))
-    for definition,table in zip(selected,tables):
+    for definition,(table,source) in zip(selected,tables):
         iceberg=definition['iceberg'];namespace=iceberg['namespace'];topic=iceberg['table']
         if str(table.metadata.table_uuid)!=iceberg['table_uuid']:
             raise ValueError('Published Iceberg table identity changed')
@@ -71,8 +76,9 @@ def bind(database, manifest, project, physical_table=None):
         columns += ["lower(split_part(source,':',1)) AS source_group", "coalesce(nullif(actor,''),'Unknown owner') AS owner_name",
                     "CASE WHEN kind IN ('pr','pull_request') THEN 'Pull requests' WHEN kind IN ('message','thread','slack_message') THEN 'Conversations' ELSE 'Documents' END AS content_type",
                     "to_json(list_value(project_id,"+literal(topic)+",record_id,event_id))::VARCHAR AS event_key"]
-        source='iceberg_scan('+literal(table.metadata_location)+')'
-        if table.current_snapshot() is None:
+        snapshot=table.current_snapshot()
+        empty=snapshot is None or (snapshot.summary is not None and snapshot.summary.get('total-records')=='0')
+        if empty:
             # Fresh tables have no data files. Bind their declared types without
             # repeatedly opening empty Iceberg metadata and manifests in S3.
             types={'string':'VARCHAR','int64':'BIGINT','int32':'INTEGER'}
@@ -81,7 +87,7 @@ def bind(database, manifest, project, physical_table=None):
         alias=definition.get('table')
         if alias:
             database.execute('CREATE TEMP VIEW "'+alias.replace('"','""')+'" AS '+projection)
-        if table.current_snapshot() is None:
+        if empty:
             empty_parts.setdefault(namespace[0],projection)
         else:
             (history_parts if namespace==['mari_history'] else current_parts).append(projection)
@@ -106,6 +112,29 @@ def bind(database, manifest, project, physical_table=None):
 
 
 
+class LazyViews:
+    """Bind only the views referenced by compiled Cypher, not every screen's views."""
+    def __init__(self,database):
+        self.database=database;self.statements={};self.ready=set()
+
+    def execute(self,statement):
+        prefix,_,_=statement.partition(' AS ')
+        name=prefix.removeprefix('CREATE TEMP VIEW ').strip('"').replace('""','"')
+        self.statements[name]=statement
+
+    def ensure(self,name):
+        if name in self.ready or name not in self.statements:return
+        statement=self.statements[name]
+        for table in sqlglot.parse_one(statement,read='duckdb').find_all(exp.Table):
+            if table.name!=name:self.ensure(table.name)
+        # A graph traversal references Record repeatedly. Read its project-scoped
+        # snapshot once per request instead of rescanning S3 for every edge arm.
+        if name in ('graph_records','links'):
+            statement=statement.replace('CREATE TEMP VIEW','CREATE TEMP TABLE',1)
+        self.database.execute(statement)
+        self.ready.add(name)
+
+
 class CatalogLake:
     def __init__(self):
         self.slots=BoundedSemaphore(2)
@@ -119,18 +148,22 @@ class CatalogLake:
             yield existing[1]
             return
         if not self.slots.acquire(timeout=2): raise RuntimeError('Query capacity is busy')
-        database=None; timer=None; token=None
+        database=None; timer=None; token=None; temporary=None
         try:
             manifest=catalog_manifest()
-            database=duckdb.connect(config={'memory_limit':'512MB','threads':2,'extension_directory':os.getenv('DUCKDB_EXTENSION_DIRECTORY',os.path.expanduser('~/.duckdb/extensions'))})
-            timer=Timer(30,database.interrupt);timer.start()
+            temporary=tempfile.TemporaryDirectory(prefix='mari-lake-')
+            database=duckdb.connect(config={'temp_directory':temporary.name,'max_temp_directory_size':'1GB','memory_limit':'512MB','threads':4,'extension_directory':os.getenv('DUCKDB_EXTENSION_DIRECTORY',os.path.expanduser('~/.duckdb/extensions'))})
             database.execute("CREATE SECRET mari_s3 (TYPE s3, PROVIDER credential_chain)")
-            bind(database,manifest,project,physical_table)
+            database.execute("LOAD iceberg; SET enable_http_metadata_cache=true; SET parquet_metadata_cache=true; SET disabled_optimizers='statistics_propagation'")
+            views=LazyViews(database)
+            bind(views,manifest,project,physical_table)
+            timer=Timer(30,database.interrupt);timer.start()
             from orchiddb import Connection, DuckDBEngine
             class ReadOnlyEngine(DuckDBEngine):
                 @contextmanager
                 def query_arrow(self, compiled, batch_size=1024):
-                    validate_read(compiled.sql, tables={table['name'] for table in manifest['schema']['tables']})
+                    tree=validate_read(compiled.sql, tables={table['name'] for table in manifest['schema']['tables']})
+                    for table in tree.find_all(exp.Table):views.ensure(table.name)
                     with super().query_arrow(compiled,batch_size) as result:
                         yield result
             # Published connectors describe storage ownership. Once bound above,
@@ -153,6 +186,7 @@ class CatalogLake:
             if token is not None:self.active.reset(token)
             if timer:timer.cancel();timer.join()
             if database:database.close()
+            if temporary:temporary.cleanup()
             self.slots.release()
 
     def manifest(self):

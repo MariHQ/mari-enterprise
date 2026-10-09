@@ -6,7 +6,7 @@ from contextlib import nullcontext,contextmanager
 from unittest.mock import patch
 import duckdb,pyarrow as pa,pyarrow.parquet as pq
 from apps.sdk.provision import definitions
-from apps.sdk.catalog_lake import bind
+from apps.sdk.catalog_lake import bind,LazyViews
 from apps.sdk.data import reader
 from apps.sdk.data.query import validate_read
 from orchiddb import Connection,DuckDBEngine
@@ -20,7 +20,7 @@ record('run-old','temporal_run','temporal',{'workflow_id':'wf','run_id':'old','s
 record('activity','temporal_activity','temporal',{'run_id':'rid','error':'failed'});record('schedule','temporal_schedule','temporal',{'recent_runs':[{'workflow_id':'wf'}]})
 record('trajectory','trajectory','agent',{'status':'done','step_ids':['step']});record('step','step','agent',{'ordinal':1});record('issue','issue','github')
 pq.write_table(pa.Table.from_pylist(rows),'/tmp/records.parquet')
-table=SimpleNamespace(current_snapshot=lambda:object(),metadata_location='/tmp/records.parquet',metadata=SimpleNamespace(table_uuid='uuid',current_schema_id=0))
+table=SimpleNamespace(current_snapshot=lambda:SimpleNamespace(summary={'total-records':str(len(rows))}),metadata_location='/tmp/records.parquet',metadata=SimpleNamespace(table_uuid='uuid',current_schema_id=0))
 physical={(ns,'mari.records.mari.document'):table for ns in ['mari_streams','mari_history']}
 objects=definitions(physical);schema={'tables':[],'nodes':[],'edges':[],'source_metadata':[]}
 for obj in objects.values():
@@ -31,7 +31,8 @@ db=duckdb.connect()
 class LocalFiles:
  def execute(self,q):return db.execute(q.replace('iceberg_scan(', 'read_parquet('))
 with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda _:table)):
- bind(LocalFiles(),{'objects':objects},'1')
+ views=LazyViews(LocalFiles());bind(views,{'objects':objects},'1')
+ for name in views.statements:views.ensure(name)
 class CheckedEngine(DuckDBEngine):
  @contextmanager
  def query_arrow(self,compiled,batch_size=1024):
