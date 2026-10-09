@@ -1,63 +1,76 @@
-"""Project isolation and graph bindings against local normalized Flink output."""
-import json
-from pathlib import Path
-import sys
-import tempfile
+"""Exercise native Cypher against physical tables, including typed edges/isolation."""
+from contextlib import contextmanager
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
 import duckdb
-import pyarrow as pa
-import pyarrow.parquet as pq
+from orchiddb import Connection, DuckDBEngine
+from apps.base.catalog.engine import physical_schema
+from apps.base.catalog.nodes import label_for
+from apps.base.catalog.provision import definitions, topics
+from apps.base.catalog.schema import columns, sql_type
 
-MARI=Path(__file__).resolve().parents[3]
-sys.path.insert(0,str(MARI))
-from apps.sdk.catalog_lake import bind,LazyViews,literal
-from apps.sdk.provision import definitions,topics,table_name
+@contextmanager
+def fixture(rows=()):
+    db=duckdb.connect(config={'threads':2})
+    db.execute("ATTACH ':memory:' AS lake")
+    db.execute('CREATE SCHEMA lake.mari')
+    physical={}
+    for topic in topics():
+        fields=columns(topic)
+        db.execute('CREATE TABLE lake.mari."'+topic+'" ('+','.join('"'+name+'" '+sql_type(t) for name,t in fields.items())+')')
+        physical[('mari',topic)]=SimpleNamespace(schema=lambda:SimpleNamespace(find_field=lambda n:SimpleNamespace(field_id=1)),metadata=SimpleNamespace(table_uuid=topic,current_schema_id=0))
+    for topic,row in rows:
+        fields=columns(topic)
+        source,kind=topic.split('.')[-2:]
+        values={'project_id':'1','event_id':row['record_id']+':1','source':source,'kind':kind,'title':row['record_id'],'text':'','url':'','actor':'demo','observed_at':1,**row}
+        db.execute('INSERT INTO lake.mari."'+topic+'" VALUES ('+','.join('?' for n in fields)+')',[values.get(n) for n in fields])
+    objects=definitions(physical)
+    schema={'tables':[],'nodes':[],'edges':[],'computed_relationships':[]}
+    for obj in objects.values():
+        if obj['kind']=='dataset':schema['tables'].append({'name':obj['table'],'columns':[{k:v for k,v in c.items() if k!='field_id'} for c in obj['columns']]})
+        if obj['kind']=='entity':schema['nodes'].append(obj['mapping'])
+        if obj['kind']=='computed_relationship':schema['computed_relationships'].append(obj['mapping'])
+    manifest={'objects':objects,'schema':schema,'revision':1}
+    try:
+        with Connection(DuckDBEngine(db),physical_schema(manifest,'1')) as graph:
+            def execute(query,parameters=None,language='cypher',project='1',limit=1000,physical_table=None):
+                assert language=='cypher'
+                with graph.query(query,parameters=parameters or {},language='cypher') as batches:
+                    result=[r for batch in batches for r in batch.to_pylist()]
+                return {'rows':result[:limit],'truncated':len(result)>limit}
+            yield execute,manifest,db
+    finally:db.close()
 
 class BindingsTests(unittest.TestCase):
-    def test_current_history_project_and_edges(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            rows=[]
-            for offset,project,id,operation,title,properties in [
-                (1,'1','a','upsert','old',{}),(2,'1','a','upsert','new',{'supporting_record_ids':['b']}),
-                (3,'1','b','upsert','evidence',{}),(4,'1','gone','upsert','delete me',{}),
-                (5,'1','gone','delete','',{}),(6,'other','a','upsert','private',{})]:
-                rows.append(dict(kafka_offset=offset,kafka_partition=0,project_id=project,record_id=id,event_id=str(offset),operation=operation,kind='fact',source='mari',title=title,text='',url='',properties=json.dumps(properties),actor='demo',observed_at=1))
-            tables={};objects={};topic='mari.records.mari.fact'
-            for namespace,values in [('mari_streams',[rows[i] for i in (1,2,5)]),('mari_history',rows)]:
-                path=Path(tmp)/(namespace+'.parquet');pq.write_table(pa.Table.from_pylist(values),path)
-                tables[(namespace,topic)]=SimpleNamespace(current_snapshot=lambda count=len(values):SimpleNamespace(summary={'total-records':str(count)}),metadata_location=str(path),metadata=SimpleNamespace(table_uuid=namespace,current_schema_id=0))
-                objects[namespace]={'definition':{'iceberg':{'namespace':[namespace],'table':topic,'table_uuid':namespace}}}
-            database=duckdb.connect()
-            class LocalFiles:
-                def execute(self,sql):return database.execute(sql.replace('iceberg_scan(', 'read_parquet('))
-            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])), patch('apps.sdk.catalog_lake.snapshot_source',side_effect=lambda table:'read_parquet('+literal(table.metadata_location)+')'):
-                views=LazyViews(LocalFiles());bind(views,{'objects':objects},'1')
-                for name in views.statements:views.ensure(name)
-            self.assertEqual(database.execute('SELECT record_id,title FROM graph_records ORDER BY record_id').fetchall(),[('a','new'),('b','evidence')])
-            self.assertEqual(database.execute('SELECT from_id,to_id FROM edge_supported_by').fetchall(),[('a','b')])
-            self.assertEqual(database.execute('SELECT count(*) FROM history').fetchone()[0],5)
-            self.assertEqual(database.execute('SELECT stream_offset,"table" FROM graph_records WHERE record_id=\'a\'').fetchone(),(2,topic))
-            physical=[d for d in definitions(tables).values() if 'iceberg' in d]
-            self.assertEqual(len(physical),2)
-            self.assertTrue(all(len(d['columns'])==14 for d in physical))
-            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])), patch('apps.sdk.catalog_lake.snapshot_source',side_effect=lambda table:'read_parquet('+literal(table.metadata_location)+')'):
-                current=LazyViews(database)
-                bind(current,{'objects':objects},'1',namespace_filter='mari_streams')
-                self.assertIn('graph_records',current.statements)
-                self.assertNotIn('history',current.statements)
-                history=LazyViews(database)
-                bind(history,{'objects':objects},'1',namespace_filter='mari_history')
-                self.assertIn('history',history.statements)
-                self.assertNotIn('graph_records',history.statements)
-            database.close()
+    def test_concrete_node_reads_only_its_table_and_project(self):
+        with fixture([
+            ('mari.records.mari.fact',{'record_id':'same','text':'visible'}),
+            ('mari.records.agent.fact',{'record_id':'same','text':'other source'}),
+            ('mari.records.mari.fact',{'record_id':'same','project_id':'other','text':'private'}),
+        ]) as (run,_,db):
+            # Dropping an unrelated declared table proves this query never reads it.
+            db.execute('DROP TABLE lake.mari."mari.records.slack.message"')
+            self.assertEqual(run('MATCH (f:MariFact) RETURN f.record_id AS id, f.text AS text')['rows'],[{'id':'same','text':'visible'}])
+            self.assertEqual(db.execute('SELECT count(*) FROM duckdb_views() WHERE NOT internal').fetchone()[0],0)
 
-    def test_topics_and_logical_graph(self):
-        self.assertTrue(all(t.startswith('mari.records.') for t in topics()))
-        self.assertEqual(len(topics()),len(set(topics())))
-        for topic in topics():self.assertEqual(table_name(topic),topic)
-        objects=definitions({})
-        self.assertIn('node_fact',objects)
-        self.assertIn('edge_supported_by',objects)
-        self.assertEqual(objects['related']['source'],'record')
+    def test_typed_relationship_matches_reference_and_project(self):
+        with fixture([
+            ('mari.records.agent.trajectory',{'record_id':'run','step_ids':['step']}),
+            ('mari.records.agent.step',{'record_id':'step','ordinal':1}),
+            ('mari.records.agent.step',{'record_id':'step','project_id':'other','ordinal':2}),
+            ('mari.records.ax.step',{'record_id':'step','ordinal':3}),
+        ]) as (run,_,__):
+            rows=run('MATCH (t:AgentTrajectory)-[:AgentTrajectory_has_step_AgentStep]->(s:AgentStep) WHERE t.record_id = $id RETURN s.record_id AS id, s.ordinal AS ordinal',{'id':'run'})['rows']
+            self.assertEqual(rows,[{'id':'step','ordinal':1}])
+
+    def test_one_entity_per_topic_and_only_explicit_endpoints(self):
+        with fixture() as (_,manifest,__):
+            nodes=manifest['schema']['nodes']
+            self.assertEqual({n['label'] for n in nodes},{label_for(t) for t in topics()})
+            self.assertEqual(len(nodes),len(topics()))
+            self.assertTrue(all(n['id']==['project_id','record_id'] for n in nodes))
+            supports=[e for e in manifest['schema']['computed_relationships'] if 'supported_by' in e['name']]
+            self.assertTrue(supports)
+            self.assertTrue(all(e['target']=='AgentEvidence' for e in supports))
+
+if __name__=='__main__':unittest.main()

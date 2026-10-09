@@ -97,12 +97,13 @@ def maintain(spark, table):
     iceberg_table=spark._jvm.org.apache.iceberg.spark.Spark3Util.loadIcebergTable(spark._jsparkSession,identifier)
     manifest_files=spark._jvm.org.apache.iceberg.ManifestFiles
     data,small,deletes,manifests=file_stats(iceberg_table,manifest_files)
-    if not needs_maintenance(data,small,deletes,manifests):
+    rewrite_deletes=os.getenv('ICEBERG_REWRITE_DELETES')=='true' and deletes>0
+    if not rewrite_deletes and not needs_maintenance(data,small,deletes,manifests):
         print(f"Skipped healthy table {table}: data={data}, deletes={deletes}, manifests={manifests}")
         return False
-    if small>=MIN_SMALL_FILES or deletes>=MIN_DELETE_FILES:
+    if rewrite_deletes or small>=MIN_SMALL_FILES or deletes>=MIN_DELETE_FILES:
         spark.sql(f"CALL mari.system.rewrite_data_files(table => '{procedure_table}', strategy => 'binpack', "
-            f"options => map('target-file-size-bytes','134217728','min-input-files','{MIN_SMALL_FILES}', "
+            f"options => map('target-file-size-bytes','134217728','min-input-files','{1 if rewrite_deletes else MIN_SMALL_FILES}', "
             "'delete-file-threshold','1','remove-dangling-deletes','true', "
             "'max-concurrent-file-group-rewrites','1','partial-progress.enabled','false'))").show(truncate=False)
     # 1.11's unpartitioned action assumes implicit cleanup, but its manifest

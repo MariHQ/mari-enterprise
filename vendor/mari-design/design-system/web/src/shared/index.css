@@ -1,0 +1,234 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Mari — Basque Coast · Sand, Stone, Bay of Biscay */
+    --background: 36 38% 97%;           /* #fdfaf6 warm sand */
+    --foreground: 24 10% 12%;           /* deep earth charcoal */
+
+    --surface: 35 30% 95%;              /* #f4f0ea soft sand */
+    --surface-2: 33 24% 92%;            /* deeper sand panel */
+    --surface-3: 30 18% 86%;            /* stone-200ish */
+
+    --card: 36 38% 97%;
+    --card-foreground: 24 10% 12%;
+
+    --popover: 36 38% 97%;
+    --popover-foreground: 24 10% 12%;
+
+    /* Water — Bay of Biscay Blue */
+    --primary: 205 78% 26%;             /* #0f4c75 stormy bay */
+    --primary-foreground: 36 38% 97%;
+    --primary-glow: 199 64% 36%;        /* lifted teal-blue for hover/glow */
+
+    --secondary: 35 22% 90%;
+    --secondary-foreground: 24 10% 12%;
+
+    --muted: 35 22% 92%;
+    --muted-foreground: 25 8% 38%;      /* legible warm gray */
+
+    --accent: 33 24% 90%;
+    --accent-foreground: 24 10% 12%;
+
+    --emerald: 158 55% 28%;             /* mossy, readable on sand */
+    --purple: 199 64% 36%;              /* alias to primary-glow */
+    --amber: 28 78% 42%;                /* burnt clay */
+    /* Fire — Cinnabar */
+    --rose: 347 77% 45%;                /* rose-600/700 cinnabar */
+
+    --destructive: 347 77% 45%;
+    --destructive-foreground: 36 38% 97%;
+
+    --border: 30 18% 84%;               /* warm stone-200/300 */
+    --input: 30 18% 84%;
+    --ring: 205 78% 26%;
+
+    --radius: 0.65rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Mari — .dark mirrors :root (dark mode disabled) */
+    --background: 36 38% 97%;
+    --foreground: 24 10% 12%;
+    --surface: 35 30% 95%;
+    --surface-2: 33 24% 92%;
+    --surface-3: 30 18% 86%;
+    --card: 36 38% 97%;
+    --card-foreground: 24 10% 12%;
+    --popover: 36 38% 97%;
+    --popover-foreground: 24 10% 12%;
+    --primary: 205 78% 26%;
+    --primary-foreground: 36 38% 97%;
+    --secondary: 35 22% 90%;
+    --secondary-foreground: 24 10% 12%;
+    --muted: 35 22% 92%;
+    --muted-foreground: 25 8% 38%;
+    --accent: 33 24% 90%;
+    --accent-foreground: 24 10% 12%;
+    --destructive: 347 77% 45%;
+    --destructive-foreground: 36 38% 97%;
+    --border: 30 18% 84%;
+    --input: 30 18% 84%;
+    --ring: 205 78% 26%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    overflow-x: hidden;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-feature-settings: "calt", "liga";
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .bg-dot {
+    background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .glass {
+    background: hsl(var(--background) / 0.75);
+    backdrop-filter: saturate(140%) blur(14px);
+    -webkit-backdrop-filter: saturate(140%) blur(14px);
+  }
+  .text-gradient {
+    background: linear-gradient(120deg, hsl(var(--foreground)) 0%, hsl(var(--primary)) 60%, hsl(var(--primary-glow)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glow-primary {
+    box-shadow: 0 1px 0 0 hsl(var(--primary) / 0.6), 0 10px 30px -12px hsl(var(--primary) / 0.45);
+  }
+  .scanline::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, hsl(var(--foreground) / 0.018) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+  }
+  .shimmer {
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.25), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2.2s linear infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .55; transform: scale(.85); }
+  }
+  .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+  @keyframes float-slow {
+    0%, 100% { transform: translate3d(0,0,0); }
+    50% { transform: translate3d(0,-12px,0); }
+  }
+  .float-slow { animation: float-slow 8s ease-in-out infinite; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 6px; border: 2px solid hsl(var(--background)); }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--surface-3)); }
+
+/* Light mode override (toggle) */
+.theme-light {
+  --background: 0 0% 100%;
+  --foreground: 230 25% 10%;
+  --surface: 220 20% 98%;
+  --surface-2: 220 18% 95%;
+  --surface-3: 220 16% 90%;
+  --card: 0 0% 100%;
+  --card-foreground: 230 25% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 230 25% 10%;
+  --primary: 217 91% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 16% 94%;
+  --secondary-foreground: 230 25% 10%;
+  --muted: 220 16% 94%;
+  --muted-foreground: 220 10% 40%;
+  --accent: 220 16% 94%;
+  --accent-foreground: 230 25% 10%;
+  --border: 220 14% 88%;
+  --input: 220 14% 88%;
+  --ring: 217 91% 55%;
+}
+
+/* Move @import to top per PostCSS requirement */
+
+/* Blog post typography */
+.prose-mari { color: hsl(var(--foreground)); line-height: 1.7; font-size: 1.0625rem; }
+.prose-mari > * + * { margin-top: 1.1em; }
+.prose-mari h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2.2em; letter-spacing: -0.01em; }
+.prose-mari h3 { font-size: 1.2rem; font-weight: 600; margin-top: 1.8em; }
+.prose-mari p { color: hsl(var(--foreground) / 0.92); }
+.prose-mari a { color: hsl(var(--primary-glow)); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.prose-mari a:hover { color: hsl(var(--foreground)); }
+.prose-mari strong { color: hsl(var(--foreground)); font-weight: 600; }
+.prose-mari ul { list-style: disc; padding-left: 1.4em; }
+.prose-mari ol { list-style: decimal; padding-left: 1.4em; }
+.prose-mari li + li { margin-top: 0.4em; }
+.prose-mari blockquote { border-left: 3px solid hsl(var(--primary-glow) / 0.6); padding: 0.2em 1em; color: hsl(var(--muted-foreground)); font-style: italic; }
+.prose-mari code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: hsl(var(--surface-2)); border: 1px solid hsl(var(--border)); border-radius: 4px; padding: 0.1em 0.35em; }
+.prose-mari pre { background: hsl(var(--surface-2)); border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 1em 1.2em; overflow-x: auto; font-size: 0.875rem; line-height: 1.55; }
+.prose-mari pre code { background: transparent; border: 0; padding: 0; font-size: inherit; }
+.prose-mari hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 2em 0; }
+
+.prose-mari table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin: 1.5em 0; }
+.prose-mari thead th { background: hsl(var(--surface-2)); border: 1px solid hsl(var(--border)); padding: 0.6em 0.8em; text-align: left; font-weight: 600; }
+.prose-mari thead th:not(:first-child) { text-align: center; }
+.prose-mari tbody td { border: 1px solid hsl(var(--border)); padding: 0.55em 0.8em; }
+.prose-mari tbody td:not(:first-child) { text-align: center; }
+.prose-mari tbody tr:nth-child(even) td { background: hsl(var(--surface-2) / 0.4); }

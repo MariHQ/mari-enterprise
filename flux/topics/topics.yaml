@@ -498,21 +498,6 @@ spec:
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
-  name: mari.records.temporal.webhook-connector
-  namespace: stack
-  labels:
-    strimzi.io/cluster: kafka
-spec:
-  topicName: mari.records.temporal.webhook_connector
-  partitions: 1
-  replicas: 1
-  config:
-    cleanup.policy: delete
-    retention.ms: -1
----
-apiVersion: kafka.strimzi.io/v1
-kind: KafkaTopic
-metadata:
   name: mari.records.temporal.temporal-workflow
   namespace: stack
   labels:
@@ -759,6 +744,66 @@ metadata:
     strimzi.io/cluster: kafka
 spec:
   topicName: mari.records.slack.principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.review
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.review
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.entity
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.entity
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.evidence
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.evidence
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.run
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.run
   partitions: 1
   replicas: 1
   config:

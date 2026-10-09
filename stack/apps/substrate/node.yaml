@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Node
+metadata:
+  name: agent-substrate-control-plane
+  labels:
+    ate.dev/substrate-version: bb0effed
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: ate-node-critical
+value: 1000000000
+globalDefault: false
+description: Node-local ate components that every actor activation depends on.

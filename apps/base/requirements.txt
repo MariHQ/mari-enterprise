@@ -9,6 +9,7 @@ duckdb==1.5.5
 pyarrow==25.0.1
 pyiceberg[pyarrow]==0.11.1
 sqlglot==28.10.1
-confluent-kafka==2.10.0
+confluent-kafka[avro]==2.10.0
 temporalio==1.12.0
 PyYAML==6.0.3
+psycopg[binary,pool]==3.2.6

@@ -13,7 +13,9 @@ async def run_miner(request):
     if not token:raise RuntimeError('Configure CLAUDE_CODE_OAUTH_TOKEN for the Claude subscription miner')
     image=os.environ['AX_MINER_IMAGE']
     endpoint=os.getenv('AX_ENDPOINT','ax-server.ax-system.svc.cluster.local:8080')
-    space=os.getenv('AX_MINER_ATESPACE','stack');name='decision-miner'
+    # AX does not replace an existing actor's template when Task.image changes.
+    # An immutable image identity prevents a rollout from executing old code.
+    space=os.getenv('AX_MINER_ATESPACE','stack');name='knowledge-miner-'+image.rsplit(':',1)[-1][:12]
     async with grpc.aio.insecure_channel(endpoint) as channel:
         client=arpc.AXStub(channel)
         try:task=await client.GetTask(ax.GetTaskRequest(atespace=space,name=name),timeout=10)
@@ -59,4 +61,5 @@ async def run_miner(request):
         finally:
             heart.cancel()
         if code!=0:raise RuntimeError('AX decision miner failed; no revisions were acknowledged')
-        return json.loads(output)['candidates']
+        result=json.loads(output)
+        return result if request.get('miner_version')=='ontology-v1' else result['candidates']

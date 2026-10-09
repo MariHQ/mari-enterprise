@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:400px; height:400px; }
+  /* Inverted emblem on ink — full-bleed so a circular crop (LinkedIn profile,
+     Calendly avatar) reads as a stamped mark. Nothing lives in the corners. */
+  .stage { width:400px; height:400px; position:relative; background:#10263B; overflow:hidden; display:grid; place-items:center; }
+  .dots {
+    position:absolute; inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.07) 1.2px, transparent 1.4px);
+    background-size:26px 26px;
+  }
+  svg { display:block; position:relative; z-index:1; }
+</style></head>
+<body>
+  <div class="stage">
+    <div class="dots"></div>
+    <svg width="212" height="212" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="30" height="30" fill="none" stroke="#F7FAFC" stroke-width="2"/>
+      <path d="M7 25V9l9 9 9-9v16" fill="none" stroke="#F7FAFC" stroke-width="2.4" stroke-linejoin="miter"/>
+      <rect x="5" y="7" width="4" height="4" fill="#F7FAFC"/>
+      <rect x="23" y="7" width="4" height="4" fill="#F7FAFC"/>
+      <rect x="5" y="23" width="4" height="4" fill="#F7FAFC"/>
+      <rect x="23" y="23" width="4" height="4" fill="#F7FAFC"/>
+      <rect x="14" y="16" width="4" height="4" fill="#B23A1E"/>
+    </svg>
+  </div>
+</body></html>

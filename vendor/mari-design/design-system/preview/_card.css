@@ -1,0 +1,61 @@
+/* Shared CSS for Mari design system preview cards.
+   Each card is ~700×N rendered at full bleed. Pulls tokens from
+   ../colors_and_type.css. Cards have NO outer chrome / titles —
+   the asset name is rendered outside by the host. */
+
+@import url('../colors_and_type.css');
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  width: 700px;
+  padding: 28px 32px;
+  background: hsl(var(--background));
+}
+
+.row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+
+.swatch {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid hsl(var(--border));
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+  min-height: 84px;
+}
+.swatch .name { font-weight: 500; }
+.swatch .val { opacity: 0.75; font-size: 10.5px; }
+
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: hsl(var(--primary-glow));
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: hsl(var(--muted-foreground));
+}
+.dim { color: hsl(var(--muted-foreground)); }
+.mono { font-family: var(--font-mono); }
+
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+
+.divider { height: 1px; background: hsl(var(--border)); margin: 12px 0; }

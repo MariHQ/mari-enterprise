@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css"></head>
+<body>
+<div class="card">
+  <div class="kicker" style="margin-bottom:14px">/ Inputs</div>
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:360px">
+    <label style="font-size:13px;font-weight:500;color:hsl(24 10% 12%)">Repository</label>
+    <input value="MariHQ/web" style="height:40px;padding:0 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(36 38% 97%);font:400 14px var(--font-sans);color:hsl(24 10% 12%)">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:360px;margin-top:14px">
+    <label style="font-size:13px;font-weight:500;color:hsl(24 10% 12%)">Slack channel</label>
+    <input placeholder="#eng-platform" style="height:40px;padding:0 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(36 38% 97%);font:400 14px var(--font-sans);color:hsl(25 8% 38%);outline:2px solid hsl(205 78% 26%);outline-offset:2px">
+    <span class="mono dim" style="font-size:11px">focus-visible · ring-2 · ring-ring · ring-offset-2</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+    <input type="checkbox" checked style="width:16px;height:16px;accent-color:hsl(205 78% 26%)">
+    <span style="font-size:13px;color:hsl(24 10% 12%)">Open PR automatically when staleness &gt; 30 days</span>
+  </div>
+</div>
+</body></html>

@@ -17,7 +17,7 @@ export function usePlatformScheduledTasks(): PageData<ScheduledTasksData> {
       lastRunStarted:run?.properties.started_at ?? recent?.scheduled_at ?? '', nextRunAt:p.next_run,
       retired:Boolean(p.retired), projected:true, sync:p.schedule_id.startsWith('sync-')};
   });
-  return {loading:result.loading,error:result.error,data:{tasks,runs:runs.map(r=>({id:r.properties.run_id,name:r.properties.workflow_type,status:r.properties.phase ? `${r.properties.status} · ${r.properties.phase.replaceAll('_',' ')}` : r.properties.status,startedAt:r.properties.started_at,duration:r.properties.duration_seconds ?? null})),observedAt:result.data?.observed_at,
+  return {loading:result.loading,error:result.error,data:{tasks,runs:runs.map(r=>({id:r.properties.run_id,name:r.properties.workflow_type,status:r.properties.phase?.phase ? `${r.properties.status} · ${r.properties.phase.phase.replaceAll('_',' ')}` : r.properties.status,startedAt:r.properties.started_at,duration:r.properties.duration_seconds ?? null})),observedAt:result.data?.observed_at,
     projectionNote:result.data?.truncated?'Result limit reached. Query the graph for the full history.':undefined}};
 }
 export function platformScheduledActions(): ScheduledTasksActions {

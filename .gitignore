@@ -15,3 +15,14 @@ CODE-AUDIT.md
 
 .env.*
 !.env.example
+
+# Local state and generated dependencies never belong in a release.
+.DS_Store
+.platform-state/
+.platform-venv/
+.pytest_cache/
+*.egg-info/
+*.log
+*.tfstate*
+*.tfplan
+.terraform/

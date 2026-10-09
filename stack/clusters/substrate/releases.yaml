@@ -1,0 +1,33 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: substrate
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/substrate
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ax
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/ax
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: substrate

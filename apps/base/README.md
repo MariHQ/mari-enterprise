@@ -29,7 +29,7 @@ Each sidebar tab has a folder under `apps/`. Its `web/src/main.tsx` imports the
 **original** page components from `vendor/mari-design/components/pages` and
 mounts them with the shared `apps/base/web/screen.tsx` adapter. The original adapters and actions now live beside each app’s UI entrypoint.
 Each app owns its `server.py` and page-specific backend modules. The shared base
-contains only common record access, authentication, clients and hosting. Knowledge includes its
+contains dependencies, authentication and HTTP hosting; it contains no record APIs or application queries. Knowledge includes its
 document, library, audit and welcome routes; Settings includes its six subpages
 and account preferences.
 
@@ -50,19 +50,19 @@ stages suspended Flux dependencies: Kafka topics → safe Iceberg schema-apply J
 → app services and graph-registration Jobs → Mari Flink ingestion. Every stage
 waits for readiness. These are not included in the running stack's reconciliation.
 
-The migrated job in `flink/` consumes normalized `mari.records.*` changes. Current
-tables in `mari_streams` upsert/delete by project and record; history tables in
-`mari_history` retain each event. Primary and identity partition keys live in the
+The job in `flink/` consumes typed Avro rows from `mari.records.*`. Each topic
+upserts/deletes its one identically named table in `mari`. The application history
+reader is not implemented; no duplicate history tables are created. Primary and identity partition keys live in the
 YAML. The schema command validates all existing tables and refuses incompatible
 schema/key/partition changes; explicit apply creates missing tables only.
 
 The shared registration helper reads that same YAML, loads existing physical
-Iceberg tables, and registers real table UUIDs plus Record/typed nodes and
-RELATED/typed relationships. `catalog_lake.py` binds those tables into each app's
-embedded runtime. App handlers and Temporal evidence reads use Cypher; SQL remains
-inside physical Iceberg bindings and maintenance. Multi-query graph requests share
-one catalog/metadata snapshot. No separate Mari or OrchidDB engine server is used.
-No live topic, table, catalog object, or service has been created by this work.
+Iceberg tables, and registers one concrete node per topic table plus explicitly
+typed relationships. `catalog/engine.py` attaches the lake directly, without views.
+App handlers and Temporal evidence reads own their Cypher. Multi-query requests
+reuse one resolved catalog and connection. No separate Mari or OrchidDB engine
+server is used.
+
 
 Deployments need `mari-runtime` (session/app grant secrets, public origin and
 optional OIDC settings), and the stack's `aws-credentials`, `polaris` and
@@ -93,3 +93,19 @@ docker run --rm --network none --entrypoint python \
   -v "$PWD/mari:/workspace:ro" -v "$PWD/mari-kit/src:/kit:ro" \
   mari-app-base:local /workspace/apps/base/tests/check_cypher.py
 ```
+
+Application routes and queries belong in the app folder, including write commands and pagination. `server.py` explicitly mounts only that app's routers. Catalog/schema provisioning and physical Iceberg bindings live in `apps/base/catalog`; normalized Kafka contracts live in `apps/base/ingestion`. Neither mounts HTTP routes. Each application image includes those infrastructure modules alongside its own backend.
+
+Shared catalog bindings, Kafka serialization, schema declarations, Python dependencies,
+and DuckDB extensions are copied once into `mari-app-base`. Application images inherit
+them and add only their own backend and original frontend. Each application owns its
+Cypher and business logic. `infra/` contains deployment configuration, not app imports.
+
+Remote DuckDB reads load `cache_httpfs` (the community extension's exact name), then
+`iceberg`. The caching extension is installed at base-image build time. There is no
+direct `httpfs` load or fallback in application code.
+
+`db.py` owns session/error handling; `commands.py` owns write validation and delivery.
+`catalog/` owns physical bindings and ontology publication. `ingestion/` owns Kafka
+serialization and producer contracts; `schemas/` owns the checked-in Avro schemas.
+App-specific queries, revision lookups, routes and actions remain under each app.

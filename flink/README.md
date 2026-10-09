@@ -1,50 +1,42 @@
-# Mari ingestion
+# Kafka topic to typed table
 
-This directory contains only Mari's normalized Kafka-to-Iceberg ingestion job,
-`local.mari.MariJob`. It has no CDC/Debezium ingestion, raw event-envelope sink,
-automatic topic discovery, JDBC catalog, or legacy stack verifier.
+`MARI_STORAGE=iceberg` (default) uses the Iceberg sink below.
+`MARI_STORAGE=postgres` selects `PostgresSink`: one typed table per topic in the
+`mari` PostgreSQL schema, using the same primary keys and Avro records. Row
+changes and per-partition offsets commit in one transaction, making replay
+idempotent. Primitive arrays stay native PostgreSQL arrays; nested records use
+JSONB. `SchemaApply` creates the selected backend's tables. The PostgreSQL route
+is staged pending the separate OrchidDB relationship-query engine fix.
 
-`ingestion.yaml` is the only declaration of accepted topics, column IDs/types, primary keys and identity partition keys. Producers send full `KnowledgeChange` JSON to `mari.records.<source>.<kind>`, keyed by the JSON array `[project_id, record_id]`. Unknown topics are not subscribed; missing Kafka topics fail the source instead of being silently invented. Invalid messages fail processing/checkpoint progress rather than being discarded. Add new topics to the declaration before enabling their producers.
+`local.mari.MariJob` uses Apache Iceberg's `DynamicIcebergSink`. Each declared Kafka topic writes to one Iceberg table with the **exact topic name** in the `mari` namespace. There are no implicit history tables, generic record columns, or JSON-string properties bags.
 
-Each declared topic creates two Iceberg tables. The table name is the exact Kafka topic, a single identifier component including its dots:
+## Schema and keys
 
-| Target | Namespace | Equality/primary key | Default identity partition |
-| --- | --- | --- | --- |
-| Current | `mari_streams` | `project_id, record_id` | `project_id` |
-| History | `mari_history` | `project_id, record_id, event_id` | `project_id` |
+Producers register a distinct Avro value schema for each topic in Confluent Schema Registry and publish Confluent Avro wire-format messages. The value is the actual row: named typed columns, including native structs, arrays and maps where declared. Flink reads the writer schema identified in the message, uses Iceberg's `AvroSchemaUtil` and `AvroGenericRecordToRowDataMapper`, and emits one `DynamicRecord`. Iceberg handles table creation and schema evolution. Schemas are never inferred from samples or JSON payloads.
 
-Current rows upsert full replacements and apply explicit deletes. History retains both upserts and delete envelopes, deduplicating the same event identity. History event IDs must identify immutable events. No ordering is inferred from timestamps: Kafka record key and partition order determine updates. Keep topic partition counts fixed while records exist; repartitioning can split an identity's order across partitions. Sink/source parallelism is deliberately one. Current/history commits are independent Iceberg snapshots and may be visible at different instants.
+`ingestion.yaml` declares only the namespace, accepted topics, primary keys and identity partition keys. It does not impose a common column schema. The table name always equals the topic name. Partition keys must belong to the primary key for upserts.
 
-The 14 columns are declared with stable IDs: `project_id`, `record_id`, `event_id`, `operation`, `kind`, `source`, `title`, `text`, `url`, `properties` (JSON string), `actor`, `observed_at` (epoch seconds), `kafka_partition`, `kafka_offset`. Partition keys must be immutable identity fields included in the target primary key; the normalized v1 primary keys are validated, not inferred. No arbitrary type coercion, inferred schema evolution, or automatic table discovery is used.
+Each Kafka key is an Avro record containing exactly the declared primary-key fields. Those fields must be required primitive columns in the value schema, and key/value identities must match. Non-null values are full replacements. A Kafka tombstone emits an equality delete into the same table, using the latest registered `<topic>-value` schema. There is no application operation envelope or duplicate event/history write.
 
-## Build and inspect locally
+Schema Registry uses standard `<topic>-key` and `<topic>-value` subjects and `BACKWARD_TRANSITIVE` compatibility. Key identity and partition fields must stay immutable; incompatible key changes require an explicit migration. Invalid input fails processing rather than silently discarding data.
 
-```bash
-cd ~/mari-root/mari/flink
+## Local build
+
+```sh
 ./build.sh
 ./schema.sh --validate
 ./schema.sh --render-topics > ../flux/topics/topics.yaml
+docker build -t mari-ingestion:local .
 ```
 
-Java 17 and Maven build/test the job locally. The Dockerfile only copies the resulting jar and declaration into the runtime image. The Java dependency classpath is saved under `target/` for local schema commands.
+Java 17 and Maven build locally; Docker copies the finished jar. OrchidDB is not compiled.
 
-## Safe schema application
+`SCHEMA_REGISTRY_URL` configures the registry; optional `SCHEMA_REGISTRY_BASIC_AUTH_USER_INFO` provides registry credentials. Polaris uses `POLARIS_URI`, `POLARIS_CREDENTIAL`, `POLARIS_WAREHOUSE` (default `lake`), and `AWS_REGION`. `schema.sh --apply` validates all registered writer schemas and existing table keys/partitions before creating missing typed tables. The dynamic sink handles subsequent writes and compatible schema evolution.
 
-Set `POLARIS_URI`, `POLARIS_CREDENTIAL`, and `AWS_REGION` in the environment; `POLARIS_WAREHOUSE` defaults to `lake`. Use credentials intended for this catalog. `MARI_INGESTION_CONFIG` optionally selects the same declaration from another path.
+## Live reset status
 
-```bash
-./schema.sh          # Read-only remote plan; no changes
-./schema.sh --apply  # Explicitly create missing namespaces/tables
-```
+The old 102 current/history tables were deleted on 2026-10-08. Typed Flink is deployed with an explicit per-partition cutover offset in `ingestion.yaml`, so old JSON records are not decoded as Avro. Retained Slack messages, collections and principals were explicitly converted and replayed through Kafka using `migrations/replay_normalized_slack.py`. The replay reads only offsets before that boundary and preserves primary keys.
 
-Both commands inspect every existing declared table first and reject changes to field IDs/types/nullability/order, primary keys, partition spec, and non-v2 tables. Apply only creates missing namespaces and tables. It never updates, drops, recreates, truncates, or deletes existing tables/data. Existing schemas are not silently evolved. Races on table creation are reloaded and validated. A partial failure may leave newly created empty tables; retry is safe. There is no cross-table transaction; do not run concurrent schema administrators during rollout. Incompatible migrations need a separate reviewed migration plan.
+All 51 topic schemas are checked in under `apps/base/schemas/`; `apps/base/catalog/register_schemas.py` publishes them with standard Schema Registry clients. The native Iceberg verification query is `tools/query_slack.py`. It reads the committed Iceberg snapshot, including delete semantics, through DuckDB's Iceberg extension.
 
-The job also performs read-only validation and refuses to start until all tables exist and match. Schema application is an explicit step before starting the job or registering OrchidDB mappings. Graph registration reads the same declaration and references real Iceberg UUIDs; it does not own the physical schema.
-
-## Staged rollout, not deployed
-
-Build/tag the runtime image from this directory after `./build.sh`. The job entrypoint is `local.mari.MariJob` and jar path is `local:///opt/flink/usrlib/mari-ingestion.jar`. The image carries `/opt/mari/ingestion.yaml`. Configure checkpoint storage and Flink HA/savepoints through the infrastructure deployment, using a fresh Mari checkpoint prefix and job identity. Use fresh state for this Mari topology.
-
-Run schema application using `local.mari.SchemaApply /opt/mari/ingestion.yaml --apply` from the same image and catalog credentials. Generate/review the KafkaTopic manifests from the YAML, apply tables, register OrchidDB nodes/edges, and start Mari ingestion only during an explicitly authorized rollout. The shared stack deployment is separate and unchanged.
-
-The staged Flux entrypoint is `../flux/kustomization.yaml`. Its suspended dependency chain is topics → schema-apply Job → app/graph-registration Jobs → FlinkDeployment. Each stage waits for readiness before dependents proceed, and pruning is disabled so removing a topic declaration does not delete Kafka data. A `GitRepository` named `mari` in `flux-system` and deployable image references are prerequisites for a future explicitly authorized activation. No stage is referenced by the active stack.
+All producer writes use registered Avro schemas. Subsequent Flink upgrades use savepoints; the initial destructive reset used explicit cutover offsets and a new state directory. `replay_normalized_records.py` converts the remaining retained pre-cutover rows.

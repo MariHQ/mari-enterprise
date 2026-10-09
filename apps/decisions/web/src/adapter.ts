@@ -1,8 +1,9 @@
+import { current, identity, address } from './identity';
 import { useSearchParams } from 'react-router-dom';
 import type { Decision } from '@mari-design/components/features/DecisionCardFeature';
 import type { DecisionsActions, DecisionsData } from '@mari-design/components/pages/DecisionsPage';
 import { buildDecisions } from './decisions';
-import { current, save, useRead, request, type RecordData } from '@mari-app/records';
+import { randomId, save, useRead, request, type RecordData } from '@mari-app/records';
 import type { PageData } from '@mari-app/types';
 
 export function usePlatformDecisions(): PageData<DecisionsData> {
@@ -12,7 +13,7 @@ export function usePlatformDecisions(): PageData<DecisionsData> {
   if(cursors.length)query.set('cursor',cursors[cursors.length-1]);
   const result=useRead<{records:RecordData[];has_more:boolean;next_cursor:string|null}>(`/api/records?${query}`);
   const decisions:Decision[]=(result.data?.records ?? []).map(r=>({
-    id:r.record_id,statement:r.text,context:r.properties.context ?? '',
+    id:identity(r),statement:r.text,context:r.properties.context ?? '',
     status:({approved:'ratified',ratified:'ratified',rejected:'ignored',superseded:'superseded'} as Record<string,Decision['status']>)[r.properties.status] ?? 'proposed',
     source:r.properties.source_label ?? r.source,provider:r.source,
     owners:r.properties.owner_ids ?? [],decidedOn:r.properties.decided_at,
@@ -27,7 +28,7 @@ export function usePlatformDecisions(): PageData<DecisionsData> {
 export function platformDecisionActions(ctx:{navigate:(href:string)=>void}): DecisionsActions {
   return {
     capture:async({statement,context,source})=>{
-      await save({table:'mari.records.mari.decision',record_id:crypto.randomUUID(),kind:'decision',source:'mari',
+      await save({table:'mari.records.mari.decision',record_id:randomId(),kind:'decision',source:'mari',
         title:statement.slice(0,500),text:statement,url:'',properties:{context,source_label:source,status:'proposed'}});
     },
     ratify:async({id})=>{

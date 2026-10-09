@@ -1,16 +1,12 @@
-"""Sources enforces container identity before invoking its embedded read adapter."""
+"""The actual Sources app protects reads and sanitizes storage errors."""
 import os
-from pathlib import Path
-import sys
+from contextlib import nullcontext
 import unittest
 from unittest.mock import patch
-
 from fastapi.testclient import TestClient
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from container.config import load_config
 from container.server import grant_for
-from apps.sources.web.server import app, QUERY
-
+from apps.sources.server import app
 
 class SourcesTests(unittest.TestCase):
     def setUp(self):
@@ -23,27 +19,35 @@ class SourcesTests(unittest.TestCase):
         return {'Authorization':'Bearer '+grant_for(self.entry,{'sub':'local:demo','name':'demo'},project)}
 
     def test_no_reads_without_valid_audience_and_project(self):
-        with patch('apps.sdk.orchid.query_pages') as read:
-            self.assertEqual(self.client.get('/api/status').status_code,401)
-            self.assertEqual(self.client.get('/api/status',headers=self.authorization('another-project')).status_code,401)
+        with patch('apps.base.db.engine.session') as read:
+            self.assertEqual(self.client.get('/api/connectors').status_code,401)
+            self.assertEqual(self.client.get('/api/connectors',headers=self.authorization('another-project')).status_code,401)
             self.entry.id='another-app'
-            self.assertEqual(self.client.get('/api/status',headers=self.authorization()).status_code,401)
+            self.assertEqual(self.client.get('/api/connectors',headers=self.authorization()).status_code,401)
             read.assert_not_called()
 
-    def test_bounded_project_scoped_read(self):
-        pages=[[{'id':'connector','properties':{'provider':'slack','targets':[{'target':'C123','name':'team','interval_seconds':900}]},'observed_at':123}],[]]
-        with patch('apps.sdk.orchid.query_pages',return_value=pages) as read:
-            response=self.client.get('/api/status',headers=self.authorization())
+    def test_empty_sources_do_not_require_a_watermark(self):
+        with patch('apps.base.db.engine.session',return_value=nullcontext()),patch('apps.sources.connectors.execute',return_value={'rows':[]}):
+            response=self.client.get('/api/connectors',headers=self.authorization())
         self.assertEqual(response.status_code,200)
-        self.assertEqual(response.json()['sources'][0]['target'],'C123')
-        query,parameters=read.call_args.args
-        self.assertIn('r.project_id = $project',query)
-        self.assertIn('LIMIT 101',query)
-        self.assertTrue(all(p['project']=='1' for p in parameters))
+        self.assertEqual(response.json(),{'records': [], 'observed_at': '', 'truncated': False})
 
-    def test_engine_failure_is_not_replaced_with_demo_records(self):
-        with patch('apps.sdk.orchid.query_pages',side_effect=RuntimeError('private connection details')):
-            response=self.client.get('/api/status',headers=self.authorization())
+    def test_connector_reads_only_its_workflow_without_watermark(self):
+        connector={'source':'temporal','kind':'temporal_connector','record_id':'slack-config',
+            'provider':'slack','targets':[{'workflow_id':'slack-sync','target':'general'}, {'workflow_id':'slack-sync-2','target':'random'}]}
+        with patch('apps.base.db.engine.session',return_value=nullcontext()),patch('apps.sources.connectors.execute',
+                side_effect=[{'rows':[connector]},{'rows':[]},{'rows':[]}]) as execute:
+            response=self.client.get('/api/connectors',headers=self.authorization())
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json()['records'][0]['properties']['targets'][0]['workflow_id'],'slack-sync')
+        self.assertEqual(execute.call_count,3)
+        run_query=execute.call_args_list[2]
+        self.assertIn('MATCH (r:TemporalRun) WHERE r.workflow_id IN $ids',run_query.args[0])
+        self.assertIn('max(r.started_at)',run_query.args[0])
+        self.assertEqual(run_query.args[1],{'ids':['slack-sync','slack-sync-2']})
+
+    def test_engine_failure_is_sanitized(self):
+        with patch('apps.base.db.engine.session',side_effect=RuntimeError('private connection details')):
+            response=self.client.get('/api/connectors',headers=self.authorization())
         self.assertEqual(response.status_code,503)
         self.assertNotIn('private',response.text)
-        self.assertNotIn('sources',response.json())

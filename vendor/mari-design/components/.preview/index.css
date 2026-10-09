@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The console frame asks for the viewport, and a percentage height only
+   resolves if every ancestor has one. */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: #f7f8fa;
+  color: #10263b;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}

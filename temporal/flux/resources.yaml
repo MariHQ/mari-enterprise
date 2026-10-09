@@ -50,7 +50,8 @@ spec:
         - secretRef: {name: mari-worker}
         - secretRef: {name: aws-credentials}
         env:
-        - {name: ORCHID_GRAPH, value: decisions}
+        - {name: ORCHID_GRAPH, value: temporal}
+        - {name: SCHEMA_REGISTRY_URL, value: http://schema-registry.stack.svc:8081}
         - {name: COMPACTION_IMAGE, value: mari-compaction:local}
         - {name: COMPACTION_CATALOG_SECRET, value: mari-iceberg-catalog}
         - {name: COMPACTION_AWS_SECRET, value: aws-credentials}
@@ -82,8 +83,16 @@ spec:
       containers:
       - name: register
         image: mari-temporal:local
-        command: [python, -m, temporal.bootstrap]
+        command: [python, -m, temporal.register_graph]
         envFrom:
         - secretRef: {name: mari-worker}
         env:
         - {name: TEMPORAL_JOBS_ENABLED, value: 'true'}
+        - {name: ORCHID_GRAPH, value: temporal}
+        - {name: ORCHID_CATALOG_CLIENT_ID, value: admin}
+        - name: ORCHID_CATALOG_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef: {name: orchid-catalog, key: admin.secret}
+        - name: ICEBERG_CREDENTIAL
+          valueFrom:
+            secretKeyRef: {name: polaris, key: credential}

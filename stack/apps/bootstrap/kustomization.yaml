@@ -1,0 +1,9 @@
+resources:
+- job.yaml
+configMapGenerator:
+- name: configure-stack
+  namespace: stack
+  files:
+  - configure.py
+generatorOptions:
+  disableNameSuffixHash: true

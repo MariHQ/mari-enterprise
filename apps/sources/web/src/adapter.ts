@@ -7,7 +7,7 @@ export function mapConnectorProjection(result:Operations): NonNullable<SourcesDa
   const runs=result.records.filter(r=>r.kind==='temporal_run').sort((a,b)=>String(b.properties.started_at ?? '').localeCompare(String(a.properties.started_at ?? '')));
   type Connector = NonNullable<SourcesData['projection']>['connectors'][number];
   const groups=new Map<string,Connector>();
-  const rows=result.records.filter(r=>r.kind==='temporal_connector'||r.kind==='webhook_connector');
+  const rows=result.records.filter(r=>r.kind==='temporal_connector');
   for(const row of rows){
     const p=row.properties,provider=String(p.provider ?? row.record_id);
     let group=groups.get(provider);

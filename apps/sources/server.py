@@ -1,4 +1,8 @@
 from pathlib import Path
-from apps.sdk.screen import create_screen
-from .connectors import router as connectors_router
-app=create_screen('sources',[connectors_router],Path(__file__).parent/"web/dist")
+from fastapi import APIRouter
+from apps.base.runtime import Manifest, create_app
+from .connectors import router as router_0
+
+router=APIRouter()
+router.include_router(router_0)
+app=create_app(Manifest(name='sources'),router,Path(__file__).parent/'web/dist',api_prefix='')

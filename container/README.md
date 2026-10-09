@@ -86,9 +86,9 @@ storage, background daemon, or local persistent database. Asset paths must use
 Each app is an independent HTTP container that listens on port 8080 and exposes
 `/healthz`. It can run as a cluster-local Knative Service and scale to zero. The
 container proxy uses a 120-second timeout to accommodate activation. Neither the
-host nor the apps install Knative; shared infrastructure remains in `~/stack`.
+host nor the apps install Knative; shared infrastructure lives in `stack/`.
 All tab apps are stateless and use the shared embedded runtime in
-`apps/sdk/catalog_lake.py`. The shared Orchid catalog provides metadata,
+`apps/base/catalog/catalog_lake.py`. The shared Orchid catalog provides metadata,
 not an engine or an app registry. Credentials and physical bindings stay on the
 app server. Its fixed read queries filter the authenticated project.
 

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mari — brand kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#10263B; --biscay:#1C3F60; --rust:#B23A1E; --paper:#ffffff; --line:rgba(16,38,59,.18); --muted:#5A6B7B; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter, sans-serif; -webkit-font-smoothing:antialiased;
+         background-image:radial-gradient(rgba(16,38,59,.06) 1.2px, transparent 1.4px); background-size:26px 26px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:64px 24px 96px; }
+  .kicker { display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono', monospace; font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:var(--rust); }
+  .kicker i { width:9px; height:9px; background:var(--rust); }
+  h1 { font-size:46px; font-weight:800; letter-spacing:-.03em; margin:12px 0 6px; }
+  .lead { font-size:18px; color:var(--muted); margin:0 0 8px; max-width:660px; line-height:1.55; }
+  section { margin-top:56px; padding-top:32px; border-top:1px solid var(--line); }
+  h2 { font-size:13px; font-family:'JetBrains Mono', monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; margin:0 0 4px; }
+  .h2sub { font-size:15px; color:var(--muted); margin:0 0 20px; max-width:720px; line-height:1.5; }
+  .row { display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; }
+  .tile img, .tile .frame { display:block; border:1px solid var(--line); }
+  .tile .cap { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  .tile .cap b { color:var(--ink); font-weight:600; }
+  .sq { width:150px; height:150px; }
+  .circle { width:150px; height:150px; border-radius:50%; overflow:hidden; }
+  .banner { width:100%; max-width:1000px; height:auto; border:1px solid var(--line); }
+  .swatches { display:flex; flex-wrap:wrap; gap:14px; }
+  .sw { width:160px; border:1px solid var(--line); overflow:hidden; background:#fff; }
+  .sw .chip { height:64px; }
+  .sw .meta { padding:8px 10px; font-family:'JetBrains Mono', monospace; font-size:11px; line-height:1.5; }
+  .sw .meta b { display:block; font-size:12px; color:var(--ink); font-weight:600; }
+  .sw .meta span { color:var(--muted); }
+  table { border-collapse:collapse; width:100%; font-size:14px; background:#fff; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+  th { font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  td.file { font-family:'JetBrains Mono', monospace; font-size:13px; color:var(--biscay); }
+  .note { font-size:13px; color:var(--muted); background:#fff; border:1px solid var(--line); padding:12px 14px; margin-top:14px; line-height:1.55; }
+  code { font-family:'JetBrains Mono', monospace; font-size:.9em; background:rgba(16,38,59,.06); padding:.1em .35em; }
+</style></head>
+<body>
+<div class="wrap">
+  <div class="kicker"><i></i>Brand kit · Brutalist Blueprint</div>
+  <h1>Mari — logo, banners &amp; social</h1>
+  <p class="lead">Matched to the live mari.guru brand: the schematic <b>M</b> mark, ink / paper / biscay, a rust accent, blueprint dot grid, and sharp corners. Every PNG is exported at 2× — upload as-is.</p>
+
+  <section>
+    <h2>Marks</h2>
+    <p class="h2sub">Paper tile for the LinkedIn company logo. Inverted ink emblem for anything that crops to a circle (LinkedIn profile photo, Calendly avatar) — the mark is centered so the circle never clips it.</p>
+    <div class="row">
+      <div class="tile">
+        <img class="sq" src="out/logo-square.png" alt="Mari square logo">
+        <div class="cap"><b>logo-square.png</b> · 800×800<br>LinkedIn company logo</div>
+      </div>
+      <div class="tile">
+        <div class="frame circle"><img class="sq" style="border:0" src="out/avatar.png" alt="Mari avatar circle-cropped"></div>
+        <div class="cap"><b>avatar.png</b> · 800×800<br>circle-crop preview → profile / Calendly</div>
+      </div>
+      <div class="tile">
+        <img class="sq" src="out/avatar.png" alt="Mari avatar square">
+        <div class="cap"><b>avatar.png</b> · 800×800<br>square source (crop-safe center)</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>LinkedIn — personal profile banner</h2>
+    <p class="h2sub">1584×396. Content is held right-of-center so your profile photo (lower-left) never covers it.</p>
+    <img class="banner" src="out/li-personal.png" alt="LinkedIn personal banner">
+    <div class="cap" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:10px"><b style="color:var(--ink)">li-personal.png</b> · 3168×792 (2× of 1584×396)</div>
+  </section>
+
+  <section>
+    <h2>LinkedIn — company page cover</h2>
+    <p class="h2sub">4200×700 (6:1) — LinkedIn's exact spec. Off-ratio images get rejected on upload. Just the centered mark + wordmark, since LinkedIn trims covers and shows the tagline in its own field. Put the tagline in LinkedIn's Tagline field.</p>
+    <img class="banner" src="out/li-company.png" alt="LinkedIn company cover">
+    <div class="cap" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:10px"><b style="color:var(--ink)">li-company.png / .jpg</b> · 4200×700 (6:1) · 28K</div>
+  </section>
+
+  <section>
+    <h2>Brand card — Calendly / OG / sharing</h2>
+    <p class="h2sub">1200×630, matched to the live link-preview layout. Use as a Calendly header, an OpenGraph card, or any share image.</p>
+    <img class="banner" src="out/card.png" alt="Mari brand card">
+    <div class="cap" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:10px"><b style="color:var(--ink)">card.png</b> · 2400×1260 (2× of 1200×630)</div>
+  </section>
+
+  <section>
+    <h2>Palette</h2>
+    <p class="h2sub">Set the Calendly brand color to ink <b>#10263B</b>.</p>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#10263B"></div><div class="meta"><b>Ink</b><span>#10263B · mark, wordmark, Calendly brand</span></div></div>
+      <div class="sw"><div class="chip" style="background:#1C3F60"></div><div class="meta"><b>Biscay</b><span>#1C3F60 · headlines, center square</span></div></div>
+      <div class="sw"><div class="chip" style="background:#B23A1E"></div><div class="meta"><b>Rust</b><span>#B23A1E · accent bar, kicker</span></div></div>
+      <div class="sw"><div class="chip" style="background:#ffffff;border-bottom:1px solid var(--line)"></div><div class="meta"><b>Paper</b><span>#FFFFFF · background</span></div></div>
+      <div class="sw"><div class="chip" style="background:#5A6B7B"></div><div class="meta"><b>Muted</b><span>#5A6B7B · mono subtext</span></div></div>
+    </div>
+    <div class="note">Type: <b>Inter</b> — 800 for the <code>mari</code> wordmark and headlines. <b>JetBrains Mono</b> for the <code>▪ MARI.GURU</code> labels and microcopy. Sharp corners, blueprint dot grid, thin ink frame, one rust accent per canvas.</div>
+  </section>
+
+  <section>
+    <h2>Where each file goes</h2>
+    <table>
+      <tr><th>File</th><th>Size (2×)</th><th>Upload to</th></tr>
+      <tr><td class="file">avatar.png</td><td>800×800</td><td>LinkedIn <b>profile photo</b> + Calendly <b>avatar</b> (both crop to a circle)</td></tr>
+      <tr><td class="file">logo-square.png</td><td>800×800</td><td>LinkedIn <b>company logo</b></td></tr>
+      <tr><td class="file">li-personal.png</td><td>3168×792</td><td>LinkedIn <b>personal profile</b> banner</td></tr>
+      <tr><td class="file">li-company.png</td><td>2256×382</td><td>LinkedIn <b>company page</b> cover</td></tr>
+      <tr><td class="file">card.png</td><td>2400×1260</td><td>Calendly header · OG / social share</td></tr>
+    </table>
+    <div class="note">Editable HTML sources are in <code>src/</code>; the real mark, live OG image, and sampled colors are in <code>live/</code>. Re-render with the Chrome command in <code>README.md</code>.</div>
+  </section>
+</div>
+</body></html>

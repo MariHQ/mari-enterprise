@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="_card.css">
+<style>
+  body { background: hsl(36 38% 97%); }
+  .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tile { border:1px solid hsl(var(--border)); border-radius: 12px; background: hsl(35 30% 95%);
+          padding: 14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .tile img { width: 72px; height: 72px; }
+  .tile .label { font-family: var(--font-mono); font-size: 11px; color: hsl(25 8% 38%);
+                 text-transform: uppercase; letter-spacing: 0.18em; }
+  .tile .name { font-size: 13px; font-weight: 600; color: hsl(24 10% 12%); margin-top: 2px; }
+</style></head>
+<body>
+<div class="card" style="background:transparent;border:none;padding:0">
+  <div class="kicker" style="margin-bottom:14px">/ Pillar icons — two-tone, hand-drawn flat</div>
+  <div class="grid">
+    <div class="tile"><img src="../assets/icon-wind.svg"><div class="name">Wind</div><div class="label">Style guide</div></div>
+    <div class="tile"><img src="../assets/icon-storm.svg"><div class="name">Storm clouds</div><div class="label">Staleness</div></div>
+    <div class="tile"><img src="../assets/icon-tree.svg"><div class="name">Tree</div><div class="label">Lineage · A11y</div></div>
+    <div class="tile"><img src="../assets/icon-thunderbolt.svg"><div class="name">Thunderbolt</div><div class="label">Automation</div></div>
+    <div class="tile"><img src="../assets/icon-mountain-cave.svg"><div class="name">Mountain</div><div class="label">Source of truth</div></div>
+    <div class="tile"><img src="../assets/icon-trio.svg"><div class="name">Horse &amp; goose</div><div class="label">Shapeshifter</div></div>
+  </div>
+</div>
+</body></html>

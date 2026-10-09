@@ -20,7 +20,7 @@ const root=join(app,'web');
 const base=appId==='container'?'/':`/apps/${appId}/`;
 const modules=join(HERE,'node_modules');
 const deps=JSON.parse(readFileSync(join(HERE,'package.json'),'utf8')).dependencies;
-const aliases=[...['auth','http','records','types','mobile'].map(name=>({find:'@mari-app/'+name,replacement:join(HERE,name+(name==='auth'?'.tsx':'.ts'))})),{find:'@mari-app/screen',replacement:join(HERE,'screen.tsx')},{find:'@mari-design/components',replacement:LIB},{find:'@mari-app/styles.css',replacement:join(HERE,'styles.css')},
+const aliases=[...['auth','http','records','types','mobile','cards','run-statistics'].map(name=>({find:'@mari-app/'+name,replacement:join(HERE,name+(['auth','cards','run-statistics'].includes(name)?'.tsx':'.ts'))})),{find:'@mari-app/screen',replacement:join(HERE,'screen.tsx')},{find:'@mari-design/components',replacement:LIB},{find:'@mari-app/styles.css',replacement:join(HERE,'styles.css')},
  ...Object.keys(deps).map(name=>({find:name,replacement:join(modules,name)}))];
 
 function typecheck(){

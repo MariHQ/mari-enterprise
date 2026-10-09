@@ -1,0 +1,12 @@
+apiVersion: ax.io/v1alpha1
+kind: Task
+metadata:
+  name: stack-smoke
+  atespace: stack
+spec:
+  image: localhost:5001/stack-ax-runner@sha256:b7c8fadac2f63e1c60e9b14437c5b8df196c83ee72ae474638c74a0bdc31cd66
+  debug: true
+  command: ["sh", "-c", "echo stack-ready > /workspace/ready.txt; sleep 3600"]
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: '1', memory: 256Mi}

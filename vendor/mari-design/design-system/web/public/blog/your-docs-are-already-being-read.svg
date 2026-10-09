@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Your docs are already being read by AI">
+  <defs>
+    <linearGradient id="bg-docs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef9c3"></stop>
+      <stop offset="100%" stop-color="#fdfaf6"></stop>
+    </linearGradient>
+    <filter id="rough-docs">
+      <feTurbulence type="fractalNoise" baseFrequency="1.0" numOctaves="2" seed="3"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="1.8"></feDisplacementMap>
+    </filter>
+    <pattern id="paper-docs" width="6" height="6" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.6" fill="#0f4c75" fill-opacity="0.05"></circle>
+    </pattern>
+  </defs>
+
+  <rect width="600" height="600" fill="url(#bg-docs)"></rect>
+  <rect width="600" height="600" fill="url(#paper-docs)"></rect>
+
+  
+  <text x="50" y="65" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="26" font-weight="600" fill="#0f4c75">your docs are already being read by AI</text>
+  <line x1="52" y1="76" x2="548" y2="80" stroke="#0f4c75" stroke-width="1.5" opacity="0.4" filter="url(#rough-docs)"></line>
+
+  
+  <g filter="url(#rough-docs)">
+    <rect x="22" y="130" width="148" height="280" fill="#fdfaf6" fill-opacity="0.85" stroke="#0f4c75" stroke-width="2"></rect>
+    <text x="96" y="156" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="14" fill="#0f4c75">human</text>
+    
+    <ellipse cx="96" cy="238" rx="40" ry="26" fill="none" stroke="#0f4c75" stroke-width="2"></ellipse>
+    
+    <circle cx="96" cy="238" r="15" fill="#0f4c75" fill-opacity="0.15" stroke="#0f4c75" stroke-width="1.5"></circle>
+    
+    <circle cx="96" cy="238" r="6" fill="#0f4c75"></circle>
+    
+    <line x1="38" y1="290" x2="154" y2="290" stroke="#0f4c75" stroke-width="1.5" opacity="0.35"></line>
+    <line x1="38" y1="305" x2="130" y2="305" stroke="#0f4c75" stroke-width="1.5" opacity="0.25"></line>
+    <line x1="38" y1="320" x2="142" y2="320" stroke="#0f4c75" stroke-width="1.5" opacity="0.18"></line>
+    <line x1="38" y1="335" x2="110" y2="335" stroke="#0f4c75" stroke-width="1.5" opacity="0.12"></line>
+    <text x="96" y="382" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="12" fill="#0f4c75" opacity="0.55">reads · skims · trusts</text>
+  </g>
+
+  
+  <g filter="url(#rough-docs)">
+    <rect x="188" y="108" width="224" height="320" fill="white" stroke="#0f4c75" stroke-width="2.5"></rect>
+    
+    <polygon points="362,108 412,108 412,155" fill="#fef9c3" stroke="#0f4c75" stroke-width="1.5"></polygon>
+    
+    <text x="300" y="138" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="13" fill="#0f4c75" opacity="0.65">source of truth</text>
+    
+    <rect x="202" y="155" width="96" height="62" fill="#ecfeff" stroke="#0f4c75" stroke-width="1.5" opacity="0.9"></rect>
+    <text x="250" y="181" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="13" fill="#0f4c75">structured</text>
+    <text x="250" y="198" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="10" fill="#0f4c75" opacity="0.6">source-backed</text>
+    
+    <rect x="306" y="155" width="84" height="62" fill="#fef9c3" stroke="#0f4c75" stroke-width="1.5" opacity="0.9"></rect>
+    <text x="348" y="181" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="13" fill="#0f4c75">current</text>
+    <text x="348" y="198" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="10" fill="#0f4c75" opacity="0.6">synced to code</text>
+    
+    <line x1="202" y1="238" x2="388" y2="238" stroke="#0f4c75" stroke-width="1" opacity="0.28"></line>
+    <line x1="202" y1="252" x2="368" y2="252" stroke="#0f4c75" stroke-width="1" opacity="0.2"></line>
+    <line x1="202" y1="266" x2="376" y2="266" stroke="#0f4c75" stroke-width="1" opacity="0.16"></line>
+    <line x1="202" y1="286" x2="388" y2="286" stroke="#0f4c75" stroke-width="1" opacity="0.25"></line>
+    <line x1="202" y1="300" x2="355" y2="300" stroke="#0f4c75" stroke-width="1" opacity="0.18"></line>
+    <line x1="202" y1="314" x2="372" y2="314" stroke="#0f4c75" stroke-width="1" opacity="0.14"></line>
+    <line x1="202" y1="334" x2="388" y2="334" stroke="#0f4c75" stroke-width="1" opacity="0.22"></line>
+    <line x1="202" y1="348" x2="360" y2="348" stroke="#0f4c75" stroke-width="1" opacity="0.16"></line>
+    <line x1="202" y1="362" x2="378" y2="362" stroke="#0f4c75" stroke-width="1" opacity="0.12"></line>
+    
+    <rect x="202" y="382" width="66" height="22" rx="11" fill="#fef9c3" stroke="#0f4c75" stroke-width="1" opacity="0.75"></rect>
+    <text x="235" y="397" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#0f4c75">llms.txt</text>
+    <rect x="276" y="382" width="48" height="22" rx="11" fill="#fef9c3" stroke="#0f4c75" stroke-width="1" opacity="0.75"></rect>
+    <text x="300" y="397" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="11" fill="#0f4c75">MCP</text>
+  </g>
+
+  
+  <g filter="url(#rough-docs)">
+    <rect x="430" y="130" width="148" height="280" fill="#fdfaf6" fill-opacity="0.85" stroke="#0f4c75" stroke-width="2"></rect>
+    <text x="504" y="156" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="14" fill="#0f4c75">AI agent</text>
+    
+    <rect x="447" y="172" width="110" height="110" fill="#0f4c75" fill-opacity="0.06" stroke="#0f4c75" stroke-width="1.5"></rect>
+    <line x1="447" y1="209" x2="557" y2="209" stroke="#0f4c75" stroke-width="0.8" opacity="0.3"></line>
+    <line x1="447" y1="245" x2="557" y2="245" stroke="#0f4c75" stroke-width="0.8" opacity="0.3"></line>
+    <line x1="484" y1="172" x2="484" y2="282" stroke="#0f4c75" stroke-width="0.8" opacity="0.3"></line>
+    <line x1="520" y1="172" x2="520" y2="282" stroke="#0f4c75" stroke-width="0.8" opacity="0.3"></line>
+    
+    <rect x="447" y="172" width="37" height="37" fill="#0f4c75" fill-opacity="0.2"></rect>
+    <rect x="484" y="209" width="36" height="36" fill="#0f4c75" fill-opacity="0.16"></rect>
+    <rect x="520" y="172" width="37" height="37" fill="#0f4c75" fill-opacity="0.12"></rect>
+    
+    <line x1="447" y1="300" x2="557" y2="300" stroke="#0f4c75" stroke-width="1.5" opacity="0.32"></line>
+    <line x1="447" y1="315" x2="530" y2="315" stroke="#0f4c75" stroke-width="1.5" opacity="0.22"></line>
+    <line x1="447" y1="330" x2="545" y2="330" stroke="#0f4c75" stroke-width="1.5" opacity="0.16"></line>
+    <line x1="447" y1="345" x2="505" y2="345" stroke="#0f4c75" stroke-width="1.5" opacity="0.11"></line>
+    <text x="504" y="384" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="12" fill="#0f4c75" opacity="0.55">chunks · indexes · embeds</text>
+  </g>
+
+  
+  <g stroke="#10b981" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#rough-docs)">
+    <polyline points="453 196, 460 206, 477 181"></polyline>
+    <polyline points="489 232, 496 242, 513 217"></polyline>
+    <polyline points="526 196, 533 206, 550 181"></polyline>
+  </g>
+
+  
+  <g stroke="#0f4c75" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#rough-docs)">
+    <line x1="188" y1="268" x2="174" y2="268"></line>
+    <polyline points="180 261, 168 268, 180 275"></polyline>
+  </g>
+
+  
+  <g stroke="#0f4c75" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#rough-docs)">
+    <line x1="412" y1="268" x2="426" y2="268"></line>
+    <polyline points="420 261, 432 268, 420 275"></polyline>
+  </g>
+
+  
+  <g stroke="#b91c1c" stroke-width="2.5" fill="none" stroke-linecap="round" filter="url(#rough-docs)">
+    <path d="M340 480 C 370 460, 410 465, 430 445"></path>
+    <polyline points="420 442, 432 442, 428 454"></polyline>
+  </g>
+  <text x="90" y="476" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="22" fill="#b91c1c">~49% of your traffic</text>
+  <text x="130" y="502" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="19" fill="#b91c1c">isn&#39;t human</text>
+
+  
+  <text x="300" y="555" text-anchor="middle" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="13" fill="#0f4c75" opacity="0.5">PEDANTIC ACCURACY OVER FLUENCY</text>
+</svg>

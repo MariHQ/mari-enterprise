@@ -12,6 +12,16 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
+      initContainers:
+      - name: register-schemas
+        image: mari-app-base:local
+        command: [python, -m, apps.base.catalog.register_schemas]
+        env:
+        - name: SCHEMA_REGISTRY_URL
+          value: http://schema-registry.stack.svc:8081
+        resources:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {memory: 256Mi}
       containers:
       - name: schema
         image: mari-ingestion:local
@@ -24,8 +34,12 @@ spec:
         - --apply
         envFrom:
         - secretRef:
+            name: mari-runtime
+        - secretRef:
             name: aws-credentials
         env:
+        - name: SCHEMA_REGISTRY_URL
+          value: http://schema-registry.stack.svc:8081
         - name: POLARIS_URI
           value: http://polaris:8181/api/catalog
         - name: POLARIS_CREDENTIAL

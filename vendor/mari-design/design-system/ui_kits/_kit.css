@@ -1,0 +1,59 @@
+/* Mari UI kit shared base — pulls global design tokens & sets canvas */
+@import url("../colors_and_type.css");
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font: 400 14px/1.5 var(--font-sans);
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  letter-spacing: -0.005em;
+}
+
+/* layout helpers */
+.container { max-width: 72rem; margin: 0 auto; padding: 0 24px; }
+.grid-bg {
+  background-image:
+    linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.glass {
+  background: hsl(var(--background) / 0.75);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border: 1px solid hsl(var(--border) / 0.8);
+}
+
+/* primary button (.btn-primary) — dark inverted with glow, the hero CTA */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 18px; border-radius: 12px; border: 0;
+  font: 500 14px var(--font-sans); cursor: pointer; transition: opacity .15s ease, background .15s ease; }
+.btn:hover { opacity: .92; }
+.btn-primary { background: hsl(var(--foreground)); color: hsl(var(--background));
+  box-shadow: 0 1px 0 0 hsl(var(--primary) / 0.6), 0 10px 30px -12px hsl(var(--primary) / 0.45); }
+.btn-secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border: 1px solid hsl(var(--border)); }
+.btn-outline { background: hsl(var(--card)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); }
+.btn-ghost { background: transparent; color: hsl(var(--foreground)); }
+.btn-sm { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
+.btn-link { background: transparent; padding: 0; height: auto; color: hsl(var(--purple2)); text-decoration: underline; text-underline-offset: 3px; }
+
+.kicker { font: 500 11px var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.muted { color: hsl(var(--muted-foreground)); }
+
+.input { height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid hsl(var(--input));
+  background: hsl(var(--background)); color: hsl(var(--foreground)); font: 400 14px var(--font-sans); width: 100%; }
+.input:focus { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+.card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius); padding: 18px; }
+
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 9999px;
+  background: hsl(var(--secondary) / 0.6); border: 1px solid hsl(var(--border));
+  font: 400 12px var(--font-mono); color: hsl(var(--muted-foreground)); }
+.pill-dot { height: 6px; width: 6px; border-radius: 9999px; background: hsl(var(--emerald2)); }
+
+.gradient-text { background: linear-gradient(120deg,
+    hsl(var(--foreground)) 0%, hsl(var(--primary)) 60%, hsl(var(--purple2)) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" role="img" aria-label="Skill activation is a coin flip">
+  <defs>
+    <linearGradient id="bg-coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdfaf6"></stop>
+      <stop offset="100%" stop-color="#ddd6fe"></stop>
+    </linearGradient>
+    <pattern id="paper-coin" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0H0V10" fill="none" stroke="#0f4c75" stroke-opacity="0.05" stroke-width="1"></path>
+    </pattern>
+    <filter id="rough-coin">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="1.6"></feDisplacementMap>
+    </filter>
+    <filter id="soft-coin" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0f4c75" flood-opacity="0.13"></feDropShadow>
+    </filter>
+  </defs>
+
+  <rect width="600" height="360" fill="url(#bg-coin)"></rect>
+  <rect width="600" height="360" fill="url(#paper-coin)"></rect>
+
+  
+  <g filter="url(#soft-coin)">
+    <rect x="40" y="130" width="150" height="100" rx="8" fill="#fdfaf6" stroke="#0f4c75" stroke-width="2.4"></rect>
+  </g>
+  <g stroke="#0f4c75" stroke-width="1.4" stroke-linecap="round" filter="url(#rough-coin)" opacity="0.7">
+    <line x1="58" y1="158" x2="170" y2="158"></line>
+    <line x1="58" y1="174" x2="160" y2="174"></line>
+    <line x1="58" y1="190" x2="150" y2="190"></line>
+  </g>
+  <text x="58" y="148" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#0f4c75" opacity="0.7" letter-spacing="1">prompt</text>
+
+  
+  <g filter="url(#soft-coin)">
+    <circle cx="300" cy="180" r="56" fill="#fef9c3" stroke="#0f4c75" stroke-width="2.6"></circle>
+  </g>
+  <g stroke="#0f4c75" stroke-width="2" fill="none" filter="url(#rough-coin)">
+    <line x1="300" y1="148" x2="300" y2="212"></line>
+  </g>
+  <text x="300" y="188" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="22" font-weight="700" fill="#0f4c75" text-anchor="middle">~50%</text>
+
+  
+  <g filter="url(#soft-coin)">
+    <rect x="410" y="100" width="140" height="56" rx="7" fill="#d9f99d" stroke="#0f4c75" stroke-width="2.4"></rect>
+    <rect x="410" y="200" width="140" height="56" rx="7" fill="#fee2e2" stroke="#0f4c75" stroke-width="2.4"></rect>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#0f4c75">
+    <text x="430" y="124" font-size="11" font-weight="700">activates</text>
+    <text x="430" y="142" font-size="9" opacity="0.65">right skill fires</text>
+    <text x="430" y="224" font-size="11" font-weight="700">silently skipped</text>
+    <text x="430" y="242" font-size="9" opacity="0.65">routing lottery lost</text>
+  </g>
+
+  
+  <g stroke="#0f4c75" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#rough-coin)">
+    <path d="M192 180 L242 180"></path>
+    <polyline points="234 174, 242 180, 234 186"></polyline>
+  </g>
+  <g stroke="#10b981" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#rough-coin)">
+    <path d="M356 158 L405 132"></path>
+    <polyline points="397 130, 405 132, 401 139"></polyline>
+  </g>
+  <g stroke="#b91c1c" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#rough-coin)">
+    <path d="M356 200 L405 226"></path>
+    <polyline points="401 219, 405 226, 397 228"></polyline>
+  </g>
+
+  
+  <g font-family="ui-serif, Georgia, serif" font-style="italic" fill="#0f4c75">
+    <text x="40" y="62" font-size="22" font-weight="700">skill activation is a coin flip</text>
+  </g>
+  <text x="40" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" fill="#0f4c75" opacity="0.65" letter-spacing="1">~1% context budget · description-match · fails silently</text>
+
+  <text x="40" y="320" font-family="ui-serif, Georgia, serif" font-style="italic" font-size="13" fill="#0f4c75" opacity="0.75">650 trials. half the time the right skill never fires.</text>
+</svg>

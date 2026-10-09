@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+  // `.preview` must be listed explicitly: TypeScript's `**/*` glob skips
+  // dot-directories, so the entire canvas layer — the state matrix, the
+  // fixtures, the renderer — was never typechecked. Breakage there was
+  // invisible to `tsc --noEmit` and only showed up as a blank page at runtime.
+  "include": ["**/*.ts", "**/*.tsx", ".preview/**/*.ts", ".preview/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "vite.config.ts"]
+}

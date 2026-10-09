@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Skills are documents too">
+  <defs>
+    <linearGradient id="bg-skills-docs" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdfaf6"></stop>
+      <stop offset="55%" stop-color="#ecfeff"></stop>
+      <stop offset="100%" stop-color="#d9f99d"></stop>
+    </linearGradient>
+    <pattern id="paper-skills-docs" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0H0V10" fill="none" stroke="#0f4c75" stroke-opacity="0.045" stroke-width="1"></path>
+    </pattern>
+    <filter id="rough-skills-docs">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="12"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale="1.7"></feDisplacementMap>
+    </filter>
+    <filter id="soft-skills-docs" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#0f4c75" flood-opacity="0.14"></feDropShadow>
+    </filter>
+  </defs>
+
+  <rect width="600" height="600" fill="url(#bg-skills-docs)"></rect>
+  <rect width="600" height="600" fill="url(#paper-skills-docs)"></rect>
+
+  
+  <g filter="url(#soft-skills-docs)">
+    <path d="M150 105 H410 L480 175 V500 H150 Z" fill="#fdfaf6" stroke="#0f4c75" stroke-width="3"></path>
+    <path d="M410 105 V175 H480" fill="#d9f99d" stroke="#0f4c75" stroke-width="3"></path>
+    <path d="M122 135 H372 L442 205 V522 H122 Z" fill="#ffffff" stroke="#0f4c75" stroke-width="2.4" opacity="0.92"></path>
+    <path d="M372 135 V205 H442" fill="#ecfeff" stroke="#0f4c75" stroke-width="2.4"></path>
+  </g>
+
+  
+  <g filter="url(#rough-skills-docs)" stroke="#0f4c75" stroke-width="2.2" stroke-linejoin="round">
+    <rect x="172" y="205" width="98" height="76" rx="7" fill="#ecfeff"></rect>
+    <rect x="296" y="205" width="118" height="76" rx="7" fill="#fef9c3"></rect>
+    <rect x="172" y="310" width="118" height="76" rx="7" fill="#d9f99d"></rect>
+    <rect x="316" y="310" width="98" height="76" rx="7" fill="#fee2e2"></rect>
+  </g>
+
+  
+  <g stroke="#0f4c75" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.55" filter="url(#rough-skills-docs)">
+    <path d="M270 243 H296"></path>
+    <path d="M221 281 V310"></path>
+    <path d="M355 281 V310"></path>
+    <path d="M290 348 H316"></path>
+  </g>
+
+  
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#0f4c75">
+    <text x="190" y="236" font-size="13" font-weight="700">facts</text>
+    <text x="190" y="258" font-size="10" opacity="0.62">source-backed</text>
+    <text x="315" y="236" font-size="13" font-weight="700">workflow</text>
+    <text x="315" y="258" font-size="10" opacity="0.62">step by step</text>
+    <text x="190" y="341" font-size="13" font-weight="700">validation</text>
+    <text x="190" y="363" font-size="10" opacity="0.62">check code</text>
+    <text x="335" y="341" font-size="13" font-weight="700">voice</text>
+    <text x="335" y="363" font-size="10" opacity="0.62">house style</text>
+  </g>
+
+  
+  <g stroke="#b91c1c" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#rough-skills-docs)">
+    <path d="M165 442 L205 420 L238 452 L280 402 L318 431 L354 392 L392 414 L430 372"></path>
+    <polyline points="418 370, 432 371, 426 384"></polyline>
+  </g>
+
+  
+  <g stroke="#10b981" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#rough-skills-docs)">
+    <polyline points="470 255, 480 267, 503 235"></polyline>
+    <polyline points="468 314, 478 326, 501 294"></polyline>
+    <polyline points="466 373, 476 385, 499 353"></polyline>
+  </g>
+  <g font-family="ui-serif, Georgia, serif" font-style="italic" fill="#0f4c75">
+    <text x="70" y="82" font-size="31" font-weight="700">skills are documents too</text>
+    <text x="74" y="544" font-size="20" opacity="0.82">composable, tested, kept honest</text>
+  </g>
+  <text x="74" y="568" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#0f4c75" opacity="0.48" letter-spacing="2">PEDANTIC ACCURACY OVER FLUENCY</text>
+</svg>

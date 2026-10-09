@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- kourier.yaml
+- local-access.yaml
+patches:
+- patch: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: kourier
+      namespace: kourier-system
+    spec:
+      type: ClusterIP
+images:
+- name: docker.io/envoyproxy/envoy
+  newName: docker.io/envoyproxy/envoy
+  digest: sha256:cfc0678bc03cca19cbb031688acb31d510bff501ff97e163026a375fe0515d69

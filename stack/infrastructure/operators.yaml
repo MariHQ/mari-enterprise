@@ -1,0 +1,98 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: stack-strimzi
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://strimzi.io/charts/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: stack-strimzi
+  namespace: flux-system
+spec:
+  interval: 10m
+  targetNamespace: stack
+  chart:
+    spec:
+      chart: strimzi-kafka-operator
+      version: 1.2.0
+      sourceRef:
+        kind: HelmRepository
+        name: stack-strimzi
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  values:
+    watchNamespaces:
+    - stack
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 10
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 10
+  releaseName: stack-strimzi
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: stack-flink-operator
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://downloads.apache.org/flink/flink-kubernetes-operator-1.13.0/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: stack-flink-operator
+  namespace: flux-system
+spec:
+  interval: 10m
+  targetNamespace: stack
+  chart:
+    spec:
+      chart: flink-kubernetes-operator
+      version: 1.13.0
+      sourceRef:
+        kind: HelmRepository
+        name: stack-flink-operator
+        namespace: flux-system
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  values:
+    watchNamespaces:
+    - stack
+    webhook:
+      create: false
+    image:
+      tag: 1.13.0
+    operatorHealth:
+      startupProbe:
+        failureThreshold: 90
+        periodSeconds: 10
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+  releaseName: stack-flink-operator

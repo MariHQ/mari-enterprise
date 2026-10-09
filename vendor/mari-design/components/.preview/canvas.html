@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mari Console — Page canvas</title>
+    <style>
+      html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+      body { background: #eef0f3; overscroll-behavior: none; }
+      /* Frame click affordance */
+      .frame-hit .frame-open {
+        position: absolute; top: 12px; right: 12px; opacity: 0;
+        font: 600 22px ui-sans-serif, system-ui; color: #fff; background: #1E6FA8;
+        padding: 6px 14px; border-radius: 999px; box-shadow: 0 6px 20px -6px #10263B80;
+        pointer-events: none; transition: opacity .12s;
+      }
+      .frame-hit:hover img { outline: 4px solid #1E6FA8; outline-offset: 3px; }
+      .frame-hit:hover .frame-open { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./canvas.tsx"></script>
+  </body>
+</html>

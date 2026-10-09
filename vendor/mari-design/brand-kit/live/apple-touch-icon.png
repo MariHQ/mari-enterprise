@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Mari · Claim-checking for AI coding agents</title>
+    <meta name="description" content="Docs with receipts. Your agent wrote the README; Mari checks it against the code. A free Claude Code plugin that writes docs from your code, fact-checks every claim, and strips the AI tells, on-device, no API key." />
+    <link rel="icon" type="image/svg+xml" href="/assets/mari-mark.svg" />
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('mari-theme');
+          var d = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', d);
+        } catch (e) {}
+      })();
+    </script>
+
+    <meta property="og:title" content="Mari · Docs with receipts" />
+    <meta property="og:description" content="Your agent wrote the README. Mari checks it against the code. Free Claude Code plugin: claim-checking, deslop, and docs from your code, on-device, no API key." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mari.guru/" />
+    <meta property="og:image" content="https://mari.guru/og.png?v=4" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="mari · AI Content Management" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Mari · Docs with receipts" />
+    <meta name="twitter:description" content="Your agent wrote the README. Mari checks it against the code. Free Claude Code plugin: claim-checking, deslop, and docs from your code, on-device, no API key." />
+    <meta name="twitter:image" content="https://mari.guru/og.png?v=4" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Mari",
+      "url": "https://mari.guru/",
+      "description": "Claim-checking for AI coding agents. A free Claude Code plugin that writes docs from your code, checks every claim against it, and strips the AI tells. On-device, no API key. Mari Canon adds an org-wide record: every claim with a source, an owner, and a sign-off.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Cross-platform (runs inside Claude Code, Cursor, GitHub Copilot, Codex)",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareHelp": "https://mari.guru/docs",
+      "sameAs": ["https://github.com/MariHQ/mari-cli"]
+    }
+    </script>
+    <script type="module" crossorigin src="/assets/landing-Dpf9VyC1.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/utils-BvEHOi8G.js">
+    <link rel="modulepreload" crossorigin href="/assets/ScrollTrigger-CiEuWA-R.js">
+    <link rel="modulepreload" crossorigin href="/assets/sun-DLt8F_95.js">
+    <link rel="modulepreload" crossorigin href="/assets/plus-BXYyEr9H.js">
+    <link rel="modulepreload" crossorigin href="/assets/loader-circle-D_VC6VTL.js">
+    <link rel="stylesheet" crossorigin href="/assets/utils-BYctaDac.css">
+    <link rel="stylesheet" crossorigin href="/assets/landing-Mz-HBwjP.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <!-- Agent- and no-JS-readable summary. Full details: /llms.txt -->
+      <main style="max-width: 640px; margin: 3rem auto; padding: 0 1.5rem; font-family: monospace; line-height: 1.6">
+        <h1>Mari — AI content management for coding agents</h1>
+        <p>
+          Your agent wrote the README. Mari checks it against the code. A free Claude Code
+          plugin that writes docs from your code, checks every claim against it, and strips
+          the AI tells. On-device, no API key. Apache 2.0.
+        </p>
+        <h2>Install (inside Claude Code)</h2>
+        <pre>
+/plugin marketplace add MariHQ/mari
+/plugin install mari@MariHQ
+/mari init</pre>
+        <p>
+          23 subcommands, a 173-rule deterministic detector, runs in the same turn your agent
+          writes. Mari Canon adds an org-wide record: every claim with a source, an owner, and
+          a sign-off. Machine-readable summary: <a href="/llms.txt">/llms.txt</a> ·
+          <a href="https://github.com/MariHQ/mari-cli">GitHub</a> · <a href="/docs">Docs</a>
+        </p>
+      </main>
+    </noscript>
+  </body>
+</html>

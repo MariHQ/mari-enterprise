@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Sun behind mountain -->
+  <circle cx="70" cy="20" r="9" fill="#C83A2B"/>
+  <!-- Mountain body -->
+  <polygon points="48,10 88,78 8,78" fill="#1F2523"/>
+  <!-- Snow cap -->
+  <path d="M48,10 L34,36 Q48,30 62,36 Z" fill="#F3F0EA"/>
+  <!-- Sleepy eyes (upward arcs) -->
+  <path d="M35,54 Q39,50 43,54" stroke="#F3F0EA" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M53,54 Q57,50 61,54" stroke="#F3F0EA" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>

@@ -31,7 +31,8 @@ def job_spec(request, candidates=None):
         'backoffLimit':2,'activeDeadlineSeconds':6600,'ttlSecondsAfterFinished':300,
         'template':{'metadata':{'labels':{'app':'iceberg-compaction'}},'spec':{'restartPolicy':'Never',
         'automountServiceAccountToken':False,'containers':[{'name':'rewrite','image':os.environ['COMPACTION_IMAGE'],
-            'args':[table] if table else [],'env':[{'name':'ICEBERG_MAINTENANCE_TABLES','value':','.join(selected)}],'envFrom':[{'secretRef':{'name':os.getenv('COMPACTION_AWS_SECRET','aws-credentials')}},{'secretRef':{'name':os.getenv('COMPACTION_CATALOG_SECRET','mari-iceberg-catalog')}}],
+            'args':[table] if table else [],'env':[{'name':'ICEBERG_MAINTENANCE_TABLES','value':','.join(selected)},
+                {'name':'ICEBERG_REWRITE_DELETES','value':str(request.get('rewrite_deletes') is True).lower()}],'envFrom':[{'secretRef':{'name':os.getenv('COMPACTION_AWS_SECRET','aws-credentials')}},{'secretRef':{'name':os.getenv('COMPACTION_CATALOG_SECRET','mari-iceberg-catalog')}}],
             'resources':{'requests':{'cpu':'100m','memory':'512Mi'},'limits':{'cpu':'1','memory':'1536Mi'}}}]}}}}
 
 
@@ -57,7 +58,7 @@ def maintenance_required(request):
                 if f.content==0:
                     data+=1;small+=int(f.file_size_in_bytes<67108864)
                 else:deletes+=1
-        return name if needs_maintenance(data,small,deletes,len(manifests)) else None
+        return name if needs_maintenance(data,small,deletes,len(manifests)) or (request.get('rewrite_deletes') is True and deletes>0) else None
     with ThreadPoolExecutor(max_workers=4) as pool:
         return [name for name in pool.map(inspect,candidates) if name is not None]
 

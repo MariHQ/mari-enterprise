@@ -4,7 +4,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.jupiter.api.Test;
 class MariCatalogTest {
   @Test void dynamicSinkStringRoundTripPreservesTopicComponent() {
-    for(String ns:new String[]{"mari_streams","mari_history"}) {
+    for(String ns:new String[]{"mari"}) {
       var id=TableIdentifier.of(ns,"mari.records.mari.principal");
       assertEquals(id,MariCatalog.canonical(TableIdentifier.parse(id.toString())));
       assertEquals(id,MariCatalog.canonical(id));

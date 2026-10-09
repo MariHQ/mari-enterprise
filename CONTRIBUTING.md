@@ -76,7 +76,7 @@ boundary, including failures, duplicate delivery, and retractions where relevant
 
 ## Adding a connector
 
-Use the normalized ingestion contracts in `apps/sdk/data/records.py` and
+Use the normalized ingestion contracts in `apps/base/ingestion/records.py` and
 Temporal polling in `temporal/`. Webhook handling has been removed.
 Exercise retry handling, cursor advancement, and retractions.
 

@@ -68,7 +68,7 @@ class ContainerTests(unittest.TestCase):
         self.assertEqual((claims['aud'],claims['sub'],claims['project']),('sources','local:demo','1'))
         self.assertLessEqual(claims['exp']-time.time(),180)
         # The real app validator accepts the proxy's grant and rejects tampering.
-        from apps.sdk.runtime import validate_grant
+        from apps.base.runtime import validate_grant
         self.assertEqual(validate_grant('Bearer '+token, 'sources')['sub'],'local:demo')
         with self.assertRaises(Exception): validate_grant('Bearer '+token+'bad', 'sources')
 

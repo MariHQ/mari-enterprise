@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres
+  namespace: stack
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: stack
+data:
+  init.sql: 'CREATE DATABASE temporal;
+
+    CREATE DATABASE temporal_visibility;
+
+    CREATE DATABASE polaris;
+
+    CREATE DATABASE orchid_catalog;
+
+    CREATE DATABASE app;
+
+    \connect app
+
+    CREATE TABLE customers (id BIGINT PRIMARY KEY, name TEXT NOT NULL, email TEXT);
+
+    ALTER TABLE customers REPLICA IDENTITY FULL;
+
+    CREATE PUBLICATION stack_cdc FOR ALL TABLES;
+
+    '
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:17-bookworm
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        env:
+        - name: POSTGRES_USER
+          value: stack
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: init
+          mountPath: /docker-entrypoint-initdb.d
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - stack
+            - -d
+            - postgres
+          periodSeconds: 5
+        args:
+        - postgres
+        - -c
+        - wal_level=logical
+        - -c
+        - max_replication_slots=10
+        - -c
+        - max_wal_senders=10
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: postgres
+      - name: init
+        configMap:
+          name: postgres-init
+      enableServiceLinks: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: stack
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432

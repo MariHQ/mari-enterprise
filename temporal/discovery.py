@@ -51,9 +51,9 @@ async def discover_slack(request: dict):
     from temporalio.client import Client
     from temporalio.exceptions import WorkflowAlreadyStartedError
     from temporalio.service import RPCError, RPCStatusCode
-    from apps.sdk.data.ingestion import publish_changes
-    from apps.sdk.data.records import KnowledgeChange
-    from apps.sdk.data.mappings import topic_for
+    from apps.base.ingestion.ingestion import publish_changes
+    from apps.base.ingestion.records import KnowledgeChange
+    from apps.base.ingestion.mappings import topic_for
     from .workflows import SourceSync
     from .observability import event_for, edge_for
     loop = asyncio.get_running_loop()
@@ -66,15 +66,14 @@ async def discover_slack(request: dict):
     targets = []
     for channel, name in channels.items():
         wid = workflow_id(channel)
-        try:
-            await client.start_workflow(SourceSync.run, {'source':'slack','target':channel}, id=wid, task_queue=os.getenv('TEMPORAL_TASK_QUEUE','mari'))
-        except WorkflowAlreadyStartedError: pass
-        targets.append({'target':channel,'name':name,'workflow_id':wid,'interval_seconds':900})
+        from .schedules import register_poll
+        await register_poll(client,wid,'sync_source',{'source':'slack','target':channel})
+        targets.append({'target':channel,'name':name,'workflow_id':wid,'interval_seconds':86400})
     previous = request.get('known')
     removed = set(previous or {}) - set(channels)
     for channel in removed:
         try:
-            await client.get_workflow_handle(workflow_id(channel)).terminate('Bot no longer belongs to Slack channel')
+            await client.get_schedule_handle(workflow_id(channel)).pause(note='Bot no longer belongs to Slack channel')
         except RPCError as error:
             if error.status not in (RPCStatusCode.NOT_FOUND, RPCStatusCode.FAILED_PRECONDITION): raise
     if previous != channels:

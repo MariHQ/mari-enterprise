@@ -57,7 +57,7 @@ print(json.dumps({'observations':rows,'offsets':next_offsets,'unsupported':unsup
 
 def normalized_observation(item, identity, actor, started):
     from mari_components.trajectories import normalize_steps, rework_count
-    from apps.sdk.data.records import KnowledgeChange, command_id
+    from apps.base.ingestion.records import KnowledgeChange, command_id
     steps=normalize_steps(event for event in item['trace'] if isinstance(event,dict))
     step_ids=[identity+':step:'+str(s.ordinal) for s in steps]
     props={'actor_id':actor,'prompt':item['prompt'],'model':item['model'],'status':'observed',
@@ -72,7 +72,7 @@ def normalized_observation(item, identity, actor, started):
     for step,key in zip(steps,step_ids):
         result.append(change(key,'step',step.tool,{
             'ordinal':step.ordinal,'tool':step.tool,'action_family':step.action_family,
-            'args':dict(step.arguments),'summary':step.summary,'ok':step.ok,
+            'args':{k:v if isinstance(v,str) else json.dumps(v) for k,v in step.arguments.items()},'summary':step.summary,'ok':step.ok,
             'status':'completed' if step.ok else 'failed','run_ids':[identity]}))
     return result
 
@@ -98,8 +98,8 @@ async def scrape_actor(channel, target, roots, offsets):
 async def observe_ax(request: dict):
     import grpc
     import ax_pb2 as pb, ax_pb2_grpc as rpc
-    from apps.sdk.data.records import KnowledgeChange, command_id
-    from apps.sdk.data.ingestion import publish_changes
+    from apps.base.ingestion.records import KnowledgeChange, command_id
+    from apps.base.ingestion.ingestion import publish_changes
     previous=request.get('known',{});known=dict(previous);offsets=dict(request.get('offsets',{}))
     roots=json.loads(os.getenv('AX_TRAJECTORY_ROOTS','[]'))
     endpoints=json.loads(os.getenv('AX_ENDPOINTS','["ax-server.ax-system.svc.cluster.local:8080"]'))

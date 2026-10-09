@@ -1,0 +1,8 @@
+nameReference:
+- kind: ConfigMap
+  version: v1
+  fieldSpecs:
+  - group: serving.knative.dev
+    version: v1
+    kind: Service
+    path: spec/template/spec/containers/envFrom/configMapRef/name

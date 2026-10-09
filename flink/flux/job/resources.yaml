@@ -1,4 +1,16 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mari-flink-state
+  namespace: stack
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: {storage: 5Gi}
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mari-flink-job
@@ -62,38 +74,52 @@ spec:
   serviceAccount: mari-flink-job
   flinkConfiguration:
     taskmanager.numberOfTaskSlots: '2'
-    execution.checkpointing.interval: 15s
+    taskmanager.memory.managed.size: 128m
+    kubernetes.jobmanager.cpu.limit-factor: '3.333333333333333'
+    kubernetes.taskmanager.cpu.limit-factor: '4.0'
+    execution.checkpointing.interval: 1min
     execution.checkpointing.timeout: 2min
     execution.checkpointing.min-pause: 5s
     execution.checkpointing.externalized-checkpoint-retention: RETAIN_ON_CANCELLATION
-    state.checkpoints.dir: s3://orchid-local-stack-846199521923-us-east-1/mari/flink/checkpoints
-    state.savepoints.dir: s3://orchid-local-stack-846199521923-us-east-1/mari/flink/savepoints
+    state.checkpoints.dir: file:///var/lib/mari-flink/checkpoints
+    state.savepoints.dir: file:///var/lib/mari-flink/savepoints
     high-availability.type: kubernetes
-    high-availability.storageDir: s3://orchid-local-stack-846199521923-us-east-1/mari/flink/ha
+    high-availability.storageDir: file:///var/lib/mari-flink/ha
     s3.region: us-east-1
     restart-strategy.type: fixed-delay
     restart-strategy.fixed-delay.attempts: '100'
     restart-strategy.fixed-delay.delay: 10s
   jobManager:
     resource:
-      memory: 1024m
-      cpu: 0.5
+      memory: 768m
+      cpu: 0.15
   taskManager:
     replicas: 1
     resource:
-      memory: 1536m
-      cpu: 1
+      memory: 1024m
+      cpu: 0.25
   imagePullPolicy: IfNotPresent
   podTemplate:
     spec:
+      securityContext:
+        fsGroup: 9999
+      volumes:
+      - name: state
+        persistentVolumeClaim: {claimName: mari-flink-state}
       containers:
       - name: flink-main-container
+        volumeMounts:
+        - {name: state, mountPath: /var/lib/mari-flink}
         envFrom:
+        - secretRef:
+            name: mari-runtime
         - secretRef:
             name: aws-credentials
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: kafka-kafka-bootstrap:9092
+        - name: SCHEMA_REGISTRY_URL
+          value: http://schema-registry.stack.svc:8081
         - name: POLARIS_URI
           value: http://polaris:8181/api/catalog
         - name: POLARIS_CREDENTIAL
@@ -105,5 +131,5 @@ spec:
     jarURI: local:///opt/flink/usrlib/mari-ingestion.jar
     entryClass: local.mari.MariJob
     parallelism: 1
-    upgradeMode: savepoint
+    upgradeMode: stateless
     state: running

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Rocky boulder body (faceted polygon) -->
+  <polygon points="12,80 8,60 20,30 34,14 48,10 62,14 76,30 88,60 84,80" fill="#7B7672"/>
+  <!-- Lighter upper facet suggesting rocky planes -->
+  <polygon points="48,10 34,14 28,36 50,32 62,14" fill="#A5A19D" opacity="0.5"/>
+  <!-- Cave interior arch -->
+  <path d="M22,80 Q22,46 48,46 Q74,46 74,80 Z" fill="#0B1110"/>
+  <!-- Left glowing eye -->
+  <circle cx="38" cy="62" r="6" fill="#C83A2B" opacity="0.28"/>
+  <circle cx="38" cy="62" r="3.5" fill="#C83A2B"/>
+  <!-- Right glowing eye -->
+  <circle cx="58" cy="62" r="6" fill="#C83A2B" opacity="0.28"/>
+  <circle cx="58" cy="62" r="3.5" fill="#C83A2B"/>
+</svg>

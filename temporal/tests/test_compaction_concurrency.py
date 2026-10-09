@@ -22,9 +22,9 @@ class ManifestConcurrencyTests(unittest.TestCase):
     def test_refreshes_and_replans_only_manifest_action(self):
         spark = Mock()
         spark.sql.side_effect = [java_failure(), Mock()]
-        self.assertTrue(rewrite_manifests(spark, '`mari`.`mari_streams`.`mari.records.mari.document`', '`mari_streams`.`mari.records.mari.document`'))
+        self.assertTrue(rewrite_manifests(spark, '`mari`.`mari`.`mari.records.mari.document`', '`mari`.`mari.records.mari.document`'))
         self.assertEqual(spark.sql.call_count, 2)
-        spark.catalog.refreshTable.assert_called_once_with('`mari`.`mari_streams`.`mari.records.mari.document`')
+        spark.catalog.refreshTable.assert_called_once_with('`mari`.`mari`.`mari.records.mari.document`')
         self.assertTrue(all('rewrite_manifests' in call.args[0] for call in spark.sql.call_args_list))
 
     def test_busy_table_defers_after_three_attempts(self):

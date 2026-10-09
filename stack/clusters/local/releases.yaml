@@ -1,0 +1,195 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./infrastructure
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: postgres
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/postgres
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: infrastructure
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: catalogs
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/catalogs
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: postgres
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kafka
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/kafka
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: infrastructure
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: temporal
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/temporal
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: postgres
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: bootstrap
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/bootstrap
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: catalogs
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: knative-crds
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/knative-crds
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: infrastructure
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: knative-serving
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/knative-serving
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: knative-crds
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: knative-kourier
+  namespace: flux-system
+spec:
+  interval: 2m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./apps/knative-kourier
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: knative-serving
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: schema-registry
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 30s
+  timeout: 5m
+  path: ./apps/schema-registry
+  prune: false
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: kafka
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dashboard
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 30s
+  timeout: 5m
+  path: ./apps/dashboard
+  prune: true
+  sourceRef:
+    kind: OCIRepository
+    name: stack
+  wait: true
+  dependsOn:
+  - name: infrastructure

@@ -13,3 +13,21 @@ resources:
 - ../../apps/sources/flux
 - ../../apps/settings/flux
 - ../../container/flux
+configMapGenerator:
+- name: mari-app-messaging
+  namespace: stack
+  literals:
+  - KAFKA_BOOTSTRAP_SERVERS=kafka-kafka-bootstrap.stack.svc:9092
+configurations:
+- knative-config.yaml
+patches:
+- target:
+    group: serving.knative.dev
+    version: v1
+    kind: Service
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/envFrom/-
+      value:
+        configMapRef:
+          name: mari-app-messaging

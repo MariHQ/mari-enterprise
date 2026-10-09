@@ -8,4 +8,4 @@ configMapGenerator:
   files:
   - register.py
 generatorOptions:
-  disableNameSuffixHash: true
+  disableNameSuffixHash: false

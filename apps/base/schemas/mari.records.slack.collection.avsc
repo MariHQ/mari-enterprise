@@ -1,0 +1,47 @@
+{
+  "type": "record",
+  "name": "SlackCollection",
+  "namespace": "mari.slack",
+  "fields": [
+    {
+      "name": "project_id",
+      "type": "string"
+    },
+    {
+      "name": "record_id",
+      "type": "string"
+    },
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "kind",
+      "type": "string"
+    },
+    {
+      "name": "source",
+      "type": "string"
+    },
+    {
+      "name": "title",
+      "type": "string"
+    },
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "url",
+      "type": "string"
+    },
+    {
+      "name": "actor",
+      "type": "string"
+    },
+    {
+      "name": "observed_at",
+      "type": "long"
+    }
+  ]
+}

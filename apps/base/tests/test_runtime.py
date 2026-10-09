@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
-from apps.sdk.runtime import Manifest, authenticated, create_app
+from apps.base.runtime import Manifest, authenticated, create_app
 from validate_wheel import validate
 
 

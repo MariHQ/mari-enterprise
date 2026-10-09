@@ -14,7 +14,7 @@ from temporal.maintenance.rewrite import MIN_SMALL_FILES, maintain, needs_mainte
 
 
 class CompactionBudgetTests(unittest.TestCase):
-    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari_streams.mari.records.mari.document',
+    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari.mari.records.mari.document',
                             'COMPACTION_IMAGE':'example@sha256:test'}, clear=True)
     def test_job_resource_budget_and_launch_configuration(self):
         container=job_spec({'run_id':'budget'})['spec']['template']['spec']['containers'][0]
@@ -35,7 +35,7 @@ class CompactionBudgetTests(unittest.TestCase):
         self.assertFalse(needs_maintenance(1,1,0,15))
         self.assertTrue(needs_maintenance(1,1,0,16))
 
-    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari_streams.mari.records.mari.document'}, clear=True)
+    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari.mari.records.mari.document'}, clear=True)
     def test_preflight_uses_the_shared_batch_threshold(self):
         files=[SimpleNamespace(data_file=SimpleNamespace(content=0,file_size_in_bytes=100)) for _ in range(7)]
         manifest=SimpleNamespace(fetch_manifest_entry=lambda *a,**kw:files)
@@ -49,7 +49,7 @@ class CompactionBudgetTests(unittest.TestCase):
     def test_rewriter_uses_metadata_without_spark_count_jobs(self):
         spark=Mock()
         with patch.dict(sys.modules, {'dangling':SimpleNamespace(remove_obsolete_deletes=lambda *args:0)}), patch('temporal.maintenance.rewrite.file_stats',return_value=(8,8,1,1)):
-            self.assertTrue(maintain(spark,'mari_streams.mari.records.mari.document'))
+            self.assertTrue(maintain(spark,'mari.mari.records.mari.document'))
         spark.sql.assert_called_once()
         sql=spark.sql.call_args.args[0]
         self.assertIn("'min-input-files','8'",sql)
@@ -59,12 +59,12 @@ class CompactionBudgetTests(unittest.TestCase):
     def test_table_that_becomes_healthy_launches_no_spark_job(self):
         spark=Mock()
         with patch.dict(sys.modules, {'dangling':SimpleNamespace(remove_obsolete_deletes=lambda *args:0)}), patch('temporal.maintenance.rewrite.file_stats',return_value=(1,1,1,2)):
-            self.assertFalse(maintain(spark,'mari_streams.mari.records.mari.document'))
+            self.assertFalse(maintain(spark,'mari.mari.records.mari.document'))
         spark.sql.assert_not_called()
 
-    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari_streams.a,mari_streams.b', 'COMPACTION_IMAGE':'example@sha256:test'}, clear=True)
+    @patch.dict(os.environ, {'ICEBERG_MAINTENANCE_TABLES':'mari.a,mari.b', 'COMPACTION_IMAGE':'example@sha256:test'}, clear=True)
     def test_only_preflight_candidates_reach_spark(self):
-        container=job_spec({'run_id':'selection'},['mari_streams.b'])['spec']['template']['spec']['containers'][0]
-        self.assertEqual(container['env'][0]['value'],'mari_streams.b')
+        container=job_spec({'run_id':'selection'},['mari.b'])['spec']['template']['spec']['containers'][0]
+        self.assertEqual(container['env'][0]['value'],'mari.b')
         for selected in ([],['other.table']):
             with self.assertRaises(ValueError):job_spec({'run_id':'selection'},selected)

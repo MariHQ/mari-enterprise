@@ -1,4 +1,4 @@
-PYTHON ?= ../.platform-venv/bin/python
+PYTHON ?= python3
 .PHONY: test test-components test-web check
 
 test: test-components test-web
@@ -17,7 +17,7 @@ test-web:
 	done
 
 check:
-	$(PYTHON) -m compileall -q temporal container apps/sdk apps/base apps/sources/web/server.py
+	$(PYTHON) -m compileall -q temporal container apps apps/base/catalog apps/base/ingestion
 	$(PYTHON) -m unittest discover -s temporal/tests -v
 	$(PYTHON) -m unittest discover -s container/tests -v
 	$(PYTHON) -m unittest discover -s apps/base/tests -v

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchid-catalog
+  namespace: stack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: orchid-catalog
+  template:
+    metadata:
+      labels:
+        app: orchid-catalog
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+      - name: catalog
+        image: localhost:5001/orchid-catalog@sha256:3885e067119fcc12948a16c9ce98da6718657e65aef64432e41342fc817f7fbf
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ORCHID_CATALOG_LISTEN
+          value: 0.0.0.0:8182
+        - name: ORCHID_CATALOG_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: orchid-catalog
+              key: database-url
+        - name: ORCHID_CATALOG_AUTH_CONFIG
+          value: /run/secrets/auth.json
+        ports:
+        - containerPort: 8182
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8182
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        volumeMounts:
+        - name: auth
+          mountPath: /run/secrets
+          readOnly: true
+      volumes:
+      - name: auth
+        secret:
+          secretName: orchid-catalog
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchid-catalog
+  namespace: stack
+spec:
+  selector:
+    app: orchid-catalog
+  ports:
+  - name: http
+    port: 8182
+    targetPort: 8182

@@ -11,6 +11,7 @@ from temporalio.client import (
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from .workflows import MineKnowledge, SourceSync
+from .schedules import register_poll
 
 
 async def schedule():
@@ -18,7 +19,7 @@ async def schedule():
     if os.getenv('TEMPORAL_JOBS_ENABLED', 'false') != 'true':
         return
     compaction_enabled = os.getenv('ICEBERG_COMPACTION_ENABLED', 'false') == 'true'
-    compaction_minutes = int(os.getenv('ICEBERG_COMPACTION_MINUTES', '60'))
+    compaction_minutes = int(os.getenv('ICEBERG_COMPACTION_MINUTES', '1440'))
     if compaction_enabled:
         from temporal.maintenance.catalog import maintenance_tables
         maintenance_tables()
@@ -45,23 +46,31 @@ async def schedule():
             pass
 
     from .observability import ObserveTemporal
-    await start(ObserveTemporal, {}, 'observe-temporal')
+    await register_poll(client,'observe-temporal','observe_temporal',{})
     if os.getenv('DECISION_MINING_ENABLED', 'false') == 'true':
-        await register('mine-decisions-daily', MineKnowledge,
-                       {'query': '*', 'incremental': True, 'miner_version': 'decisions-extract-v2'}, 1440)
+        from .ontology import ExtractOntology
+        await register('mine-decisions-daily', ExtractOntology,
+                       {'budget_usd':float(os.getenv('MINING_RUN_BUDGET_USD','5')),
+                        'context_budget_usd':float(os.getenv('MINING_CONTEXT_BUDGET_USD','2')),
+                        'max_contexts':int(os.getenv('MINING_MAX_CONTEXTS','20'))},1440)
     if compaction_enabled:
         from temporal.maintenance.compaction import CompactIceberg
         await register('compact-iceberg-maintenance', CompactIceberg, {},
                        compaction_minutes)
+    elif os.getenv('MARI_STORAGE','iceberg')=='postgres':
+        from temporalio.service import RPCError,RPCStatusCode
+        try:await client.get_schedule_handle('compact-iceberg-maintenance').pause(note='Iceberg storage is disabled')
+        except RPCError as error:
+            if error.status!=RPCStatusCode.NOT_FOUND:raise
     if os.getenv('SLACK_BOT_TOKEN'):
         from .discovery import DiscoverSlack
-        await start(DiscoverSlack, {}, 'discover-slack')
+        await register_poll(client,'discover-slack','discover_slack',{})
     if os.getenv('AX_OBSERVATION_ENABLED', 'false') == 'true':
         from .ax_observability import ObserveAX
-        await start(ObserveAX, {}, 'observe-ax')
+        await register_poll(client,'observe-ax','observe_ax',{})
     for target in filter(None, (s.strip() for s in os.getenv('GITHUB_REPOSITORIES', '').split(','))):
         identity = 'poll-sync-github-' + hashlib.sha256(target.encode()).hexdigest()[:12]
-        await start(SourceSync, {'source': 'github', 'target': target}, identity)
+        await register_poll(client,identity,'sync_source',{'source':'github','target':target})
 
 
 def setup():

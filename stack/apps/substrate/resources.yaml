@@ -1,0 +1,3189 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ate-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  name: ate-api-server
+  namespace: ate-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ate-api-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: '9090'
+        prometheus.io/scrape: 'true'
+      labels:
+        app: ate-api-server
+    spec:
+      containers:
+      - args:
+        - --grpc-server-cred-bundle=/run/servicedns.podcert.ate.dev/credential-bundle.pem
+        - --authentication-config=/etc/ateapi/authentication/authentication.yaml
+        - --postgres-connection-string=@env
+        - --postgres-schema=@env
+        - --actor-id-jwt-pool=/run/actor-id-jwt-pool/pool.json
+        - --actor-id-ca-pool=/run/actor-id-ca-pool/pool.json
+        - --atelet-client-cred-bundle=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        - --pod-identity-ca-certs=/run/podidentity.podcert.ate.dev/trust-bundle.pem
+        - --egress-gateway-address=atenet-egress.ate-system.svc:443
+        - --drain-delay=13s
+        - --drain-timeout=15s
+        env:
+        - name: OTEL_TRACES_SAMPLER
+          value: parentbased_always_on
+        - name: ATE_STORAGE_BACKEND
+          value: s3
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        - configMapRef:
+            name: ate-api-server-envvars
+            optional: true
+        - secretRef:
+            name: ate-api-server-secret-envvars
+            optional: true
+        - secretRef:
+            name: aws-credentials
+        image: localhost:5001/ateapi-752889f8b0bcdbee32172ac9fe056025@sha256:83c1e166fa905edfbb282731cb8e86bcd75bd2426636ae1c191946864f9fe7bd
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        name: ate-api-server
+        ports:
+        - containerPort: 443
+        - containerPort: 9090
+          name: prometheus
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        startupProbe:
+          failureThreshold: 24
+          httpGet:
+            path: /healthz
+            port: 9090
+          periodSeconds: 5
+        volumeMounts:
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+        - mountPath: /run/actor-id-jwt-pool
+          name: actor-id-jwt-pool
+        - mountPath: /run/actor-id-ca-pool
+          name: actor-id-ca-pool
+          readOnly: true
+        - mountPath: /etc/ateapi/authentication
+          name: authentication-config
+          readOnly: true
+        - mountPath: /run/postgres-server-ca
+          name: postgres-server-ca
+          readOnly: true
+      serviceAccountName: ate-api-server
+      terminationGracePeriodSeconds: 40
+      volumes:
+      - name: servicedns
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: servicedns.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: podidentity.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: podidentity.podcert.ate.dev/identity
+      - name: actor-id-jwt-pool
+        projected:
+          sources:
+          - secret:
+              items:
+              - key: pool
+                path: pool.json
+              name: actor-id-jwt-pool
+      - name: actor-id-ca-pool
+        projected:
+          sources:
+          - secret:
+              items:
+              - key: pool
+                path: pool.json
+              name: actor-id-ca-pool
+      - configMap:
+          name: ate-api-authentication
+        name: authentication-config
+      - name: postgres-server-ca
+        secret:
+          optional: true
+          secretName: postgres-server-ca
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  name: ate-controller
+  namespace: ate-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ate-controller
+  template:
+    metadata:
+      labels:
+        app: ate-controller
+    spec:
+      containers:
+      - args:
+        - --ateapi-ca-file=/run/servicedns-ca/trust-bundle.pem
+        - --ateapi-client-cert=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        image: localhost:5001/atecontroller-86b02a85c6bff82898e0930a8b0286d1@sha256:fa686afa29bef8c539a92d400f9a9439f8b96ef7ce8ec6c3a3c145d893d162d9
+        name: ate-controller
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: healthz
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+        - mountPath: /run/servicedns-ca
+          name: servicedns-ca
+      serviceAccountName: ate-controller
+      volumes:
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: podidentity.podcert.ate.dev/identity
+      - name: servicedns-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: atenet-egress
+  name: atenet-egress
+  namespace: ate-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atenet-egress
+  template:
+    metadata:
+      labels:
+        app: atenet-egress
+    spec:
+      containers:
+      - args:
+        - -c
+        - /etc/envoy/envoy.yaml
+        - --service-node
+        - atenet-egress
+        - --service-cluster
+        - atenet-egress
+        image: envoyproxy/envoy:v1.39-latest@sha256:57e14a549d7bd43c8d3f6d03e8cfa653e037d4b38e133acd9b54f38c524401b4
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - while [ ! -f /var/run/atenet/drain-complete ]; do sleep 0.5; done
+        name: envoy
+        ports:
+        - containerPort: 443
+          name: https
+        - containerPort: 15000
+          name: admin
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: admin
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 65532
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /ready
+            port: admin
+          periodSeconds: 1
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: config
+          readOnly: true
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+          readOnly: true
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+          readOnly: true
+        - mountPath: /run/actor-id-ca-certs
+          name: actor-id-ca-certs
+          readOnly: true
+        - mountPath: /var/run/atenet
+          name: drain-signal
+          readOnly: true
+      - args:
+        - router
+        - --mode=egress
+        - --namespace=ate-system
+        - --port-extproc=50051
+        - --extproc-address=127.0.0.1
+        - --ateapi-address=dns:///api.ate-system.svc:443
+        - --ateapi-ca-file=/run/servicedns.podcert.ate.dev/trust-bundle.pem
+        - --ateapi-client-cert=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        - --actor-identity-ca-file=/run/actor-id-ca-certs/ca.crt
+        - --otlp-collector-address=
+        - --envoy-admin-address=localhost:15000
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        image: localhost:5001/atenet-2559047aaba794c6723c99da32f86409@sha256:65333ca0118d118a771bacd3139dd4b25467d956dca1635104eb81f32391a862
+        name: ext-proc
+        ports:
+        - containerPort: 50051
+          name: extproc
+        - containerPort: 9090
+          name: metrics
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        volumeMounts:
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+          readOnly: true
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+          readOnly: true
+        - mountPath: /run/actor-id-ca-certs
+          name: actor-id-ca-certs
+          readOnly: true
+        - mountPath: /var/run/atenet
+          name: drain-signal
+      securityContext:
+        sysctls:
+        - name: net.ipv4.ip_unprivileged_port_start
+          value: '0'
+      serviceAccountName: atenet-egress
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: atenet-egress
+        name: config
+      - emptyDir: {}
+        name: drain-signal
+      - name: servicedns
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: servicedns.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: podidentity.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: podidentity.podcert.ate.dev/identity
+      - name: actor-id-ca-certs
+        secret:
+          secretName: actor-id-ca-certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: atenet-router
+  name: atenet-router
+  namespace: ate-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atenet-router
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: '9090'
+        prometheus.io/scrape: 'true'
+      labels:
+        app: atenet-router
+    spec:
+      containers:
+      - args:
+        - router
+        - --mode=ingress
+        - --namespace=ate-system
+        - --port-http=8080
+        - --port-xds=18000
+        - --port-extproc=50051
+        - --extproc-address=127.0.0.1
+        - --status-port=4040
+        - --port-https=8443
+        - --envoy-cert-path=/run/servicedns.podcert.ate.dev/credential-bundle.pem
+        - --port-connect=8081
+        - --port-connect-tls=8444
+        - --ateapi-address=k8s:///api.ate-system.svc:443
+        - --ateapi-ca-file=/run/servicedns-ca/trust-bundle.pem
+        - --ateapi-client-cert=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        - --drain-delay=13s
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),service.instance.id=$(POD_UID)
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        image: localhost:5001/atenet-2559047aaba794c6723c99da32f86409@sha256:65333ca0118d118a771bacd3139dd4b25467d956dca1635104eb81f32391a862
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        name: atenet-router
+        ports:
+        - containerPort: 18000
+          name: xds
+        - containerPort: 50051
+          name: extproc
+        - containerPort: 4040
+          name: status
+        - containerPort: 9090
+          name: metrics
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        volumeMounts:
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+        - mountPath: /run/servicedns-ca
+          name: servicedns-ca
+        - mountPath: /var/run/atenet
+          name: drain-signal
+      - command:
+        - /usr/local/bin/envoy
+        - -c
+        - /etc/envoy/envoy.yaml
+        - --component-log-level
+        - upstream:debug,router:debug,ext_proc:debug
+        image: envoyproxy/envoy:v1.39-latest@sha256:57e14a549d7bd43c8d3f6d03e8cfa653e037d4b38e133acd9b54f38c524401b4
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - while [ ! -f /var/run/atenet/drain-complete ]; do sleep 0.5; done
+        name: envoy
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8443
+          name: https
+        - containerPort: 8081
+          name: connect
+        - containerPort: 8444
+          name: connect-tls
+        - containerPort: 9901
+          name: admin
+        volumeMounts:
+        - mountPath: /etc/envoy
+          name: envoy-config
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+        - mountPath: /var/run/atenet
+          name: drain-signal
+          readOnly: true
+      serviceAccountName: atenet-router
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - configMap:
+          name: atenet-router-envoy-config
+        name: envoy-config
+      - emptyDir: {}
+        name: drain-signal
+      - name: servicedns
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: servicedns.podcert.ate.dev/identity
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: podidentity.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: podidentity.podcert.ate.dev/identity
+      - name: servicedns-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations: {}
+  labels:
+    app: atelet
+    ate.dev/substrate-version: bb0effed
+  name: atelet-bb0effed
+  namespace: ate-system
+spec:
+  selector:
+    matchLabels:
+      app: atelet
+      ate.dev/substrate-version: bb0effed
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: '9090'
+        prometheus.io/scrape: 'true'
+      labels:
+        app: atelet
+        ate.dev/substrate-version: bb0effed
+    spec:
+      containers:
+      - args:
+        - --gcp-auth-for-image-pulls=false
+        - --localhost-registry-replacement=kind-registry:5000
+        - --grpc-server-cred-bundle=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+        - --client-ca-certs=/run/podidentity.podcert.ate.dev/trust-bundle.pem
+        - --log-level=debug
+        env:
+        - name: ATE_STORAGE_BACKEND
+          value: s3
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.pod.uid=$(POD_UID),k8s.node.name=$(NODE_NAME),service.instance.id=$(POD_UID)
+        envFrom:
+        - configMapRef:
+            name: ate-otel-config
+        - secretRef:
+            name: aws-credentials
+        image: localhost:5001/atelet-89dbecdd4e8d5cd4d125a2de341f399c@sha256:4613a8ce4b0c6b2b5bee6ff2cba9a30356d84af796b1f925d6c5829a2ca8e223
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        name: atelet
+        ports:
+        - containerPort: 8085
+          hostPort: 8085
+          name: grpc
+        - containerPort: 9090
+          hostPort: 9090
+          name: prometheus
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /readyz
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+          runAsGroup: 0
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /var/lib/ateom-gvisor
+          name: run-ateom
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns-ca
+          readOnly: true
+        - mountPath: /var/lib/kubelet/plugins
+          name: kubelet-plugins
+        - mountPath: /var/lib/kubelet/device-plugins
+          name: device-plugins
+        - mountPath: /host/dev
+          name: host-dev
+          readOnly: true
+      nodeSelector:
+        ate.dev/substrate-version: bb0effed
+      priorityClassName: ate-node-critical
+      serviceAccountName: atelet
+      terminationGracePeriodSeconds: 330
+      tolerations:
+      - effect: NoSchedule
+        key: ate.dev/sandboxClass
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/lib/ateom-gvisor
+          type: DirectoryOrCreate
+        name: run-ateom
+      - hostPath:
+          path: /var/lib/kubelet/plugins
+          type: DirectoryOrCreate
+        name: kubelet-plugins
+      - hostPath:
+          path: /var/lib/kubelet/device-plugins
+          type: DirectoryOrCreate
+        name: device-plugins
+      - hostPath:
+          path: /dev
+          type: Directory
+        name: host-dev
+      - name: podidentity
+        projected:
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: podidentity.podcert.ate.dev/identity
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: podidentity.podcert.ate.dev/identity
+      - name: servicedns-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: servicedns.podcert.ate.dev/identity
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations: {}
+  name: postgres
+  namespace: ate-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - args:
+        - -c
+        - config_file=/etc/postgresql/postgresql.conf
+        env:
+        - name: POSTGRES_DB
+          value: atepg
+        - name: POSTGRES_HOST_AUTH_METHOD
+          value: trust
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/sh
+              - -ec
+              - "until psql -U postgres -d postgres -Atc 'SELECT 1' >/dev/null 2>&1;\
+                \ do\n  sleep 1\ndone\nif ! psql -U postgres -d postgres -Atc \\\n\
+                \  \"SELECT 1 FROM pg_database WHERE datname = 'atepg'\" | grep -qx\
+                \ 1; then\n  createdb -U postgres atepg\nfi\n"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - postgres
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        name: postgres
+        ports:
+        - containerPort: 5432
+          name: postgres
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -ec
+            - psql -U postgres -d atepg -Atc 'SELECT 1' >/dev/null
+          initialDelaySeconds: 2
+          periodSeconds: 30
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /etc/postgresql
+          name: config
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+          readOnly: true
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity-ca
+          readOnly: true
+        - mountPath: /var/run/postgresql
+          name: socket
+        - mountPath: /var/lib/postgresql/data
+          name: data
+      initContainers:
+      - command:
+        - /bin/sh
+        - /etc/postgresql/reload-tls.sh
+        image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+        name: tls-reloader
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        restartPolicy: Always
+        securityContext:
+          runAsUser: 70
+        volumeMounts:
+        - mountPath: /etc/postgresql
+          name: config
+        - mountPath: /run/servicedns.podcert.ate.dev
+          name: servicedns
+          readOnly: true
+        - mountPath: /run/podidentity.podcert.ate.dev
+          name: podidentity-ca
+          readOnly: true
+        - mountPath: /var/run/postgresql
+          name: socket
+      securityContext:
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - configMap:
+          name: postgres-config
+        name: config
+      - name: servicedns
+        projected:
+          defaultMode: 384
+          sources:
+          - podCertificate:
+              credentialBundlePath: credential-bundle.pem
+              keyType: ECDSAP256
+              signerName: servicedns.podcert.ate.dev/identity
+      - emptyDir: {}
+        name: socket
+      - name: podidentity-ca
+        projected:
+          sources:
+          - clusterTrustBundle:
+              labelSelector:
+                matchLabels:
+                  podcert.ate.dev/canarying: live
+              path: trust-bundle.pem
+              signerName: podidentity.podcert.ate.dev/identity
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: api
+  namespace: ate-system
+spec:
+  clusterIP: None
+  ipFamilyPolicy: PreferDualStack
+  ports:
+  - name: grpc
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: ate-api-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  labels:
+    app: ate-controller
+  name: ate-controller
+  namespace: ate-system
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    protocol: TCP
+    targetPort: metrics
+  selector:
+    app: ate-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: atenet-egress
+  namespace: ate-system
+spec:
+  ipFamilyPolicy: PreferDualStack
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: atenet-egress
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: atenet-router
+  namespace: ate-system
+spec:
+  ipFamilyPolicy: PreferDualStack
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 8443
+  - name: connect
+    port: 8081
+    protocol: TCP
+    targetPort: 8081
+  - name: connect-tls
+    port: 8444
+    protocol: TCP
+    targetPort: 8444
+  - name: status
+    port: 4040
+    protocol: TCP
+    targetPort: status
+  selector:
+    app: atenet-router
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: postgres
+  namespace: ate-system
+spec:
+  clusterIP: None
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: v1
+data:
+  authentication.yaml: "actorIdentityJWTProvider: kubernetes\njwtProviders:\n- name:\
+    \ kubernetes\n  issuer: https://kubernetes.default.svc.cluster.local\n  audiences:\
+    \ [api.ate-system.svc]\n  certificateAuthorityFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt\n\
+    \  discoveryTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: ate-api-authentication
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: ate-api-server-envvars
+  namespace: ate-system
+---
+apiVersion: v1
+data:
+  OTEL_SDK_DISABLED: 'true'
+  OTEL_LOGS_EXPORTER: none
+  OTEL_METRICS_EXPORTER: none
+  OTEL_TRACES_EXPORTER: none
+  OTEL_TRACES_SAMPLER: always_off
+  OTEL_METRIC_EXPORT_INTERVAL: '86400000'
+  OTEL_METRIC_EXPORT_TIMEOUT: '100'
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: ate-otel-config
+  namespace: ate-system
+---
+apiVersion: v1
+data:
+  envoy.yaml: "admin:\n  address:\n    # ipv4_compat is load-bearing: the probes below\
+    \ are the kubelet\n    # dialling the pod IP, which is IPv4 on an IPv4 cluster.\n\
+    \    socket_address: { address: \"::\", ipv4_compat: true, port_value: 15000 }\n\
+    \n# Internal listeners need this extension registered; without it they\n# silently\
+    \ fail to load.\nbootstrap_extensions:\n- name: envoy.bootstrap.internal_listener\n\
+    \  typed_config:\n    \"@type\": type.googleapis.com/envoy.extensions.bootstrap.internal_listener.v3.InternalListener\n\
+    \nstatic_resources:\n  listeners:\n  # ---------------------------------------------------------------------\n\
+    \  # Listener A: terminates atunnel's mTLS and the CONNECT, authenticates\n  #\
+    \ the actor, decides the address rules, and hands the tunnel to the\n  # inner\
+    \ listener. No MITM here, so hostname rules apply to cleartext\n  # HTTP only.\
+    \ See cmd/atenet/internal/router/README.md.\n  # ---------------------------------------------------------------------\n\
+    \  - name: egress\n    address:\n      # ipv4_compat rather than a second socket:\
+    \ IPv4 peers arrive as\n      # ::ffff: and nothing here reads the peer -- identity\
+    \ is the cert.\n      socket_address: { address: \"::\", ipv4_compat: true, port_value:\
+    \ 443 }\n    filter_chains:\n    # Named so ext_proc can read it back as xds.filter_chain_name.\
+    \ Must\n    # match EgressFilterChainName in\n    # cmd/atenet/internal/router/extproc/dispatch.go.\n\
+    \    - name: egress\n      transport_socket:\n        name: envoy.transport_sockets.tls\n\
+    \        typed_config:\n          \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext\n\
+    \          require_client_certificate: true\n          common_tls_context:\n \
+    \           # Gateway server identity (servicedns signer), via filesystem\n  \
+    \          # SDS: watched_directory only works on SDS-delivered secrets,\n   \
+    \         # so an inline cert would never pick up kubelet's rotation.\n      \
+    \      tls_certificate_sds_secret_configs:\n            - name: servicedns_serving_cert\n\
+    \              sds_config:\n                resource_api_version: V3\n       \
+    \         path_config_source:\n                  path: /etc/envoy/sds-servicedns-cert.yaml\n\
+    \            validation_context:\n              # Actors authenticate with an\
+    \ actor-identity client cert.\n              # Envoy enforces chain, signature,\
+    \ and validity period here, so\n              # an unsigned or expired actor cert\
+    \ never reaches ext_proc; the\n              # ActorIdentity extension is checked\
+    \ there because Envoy cannot\n              # read custom X.509 extensions.\n\
+    \              trusted_ca: { filename: /run/actor-id-ca-certs/ca.crt }\n     \
+    \ filters:\n      - name: envoy.filters.network.http_connection_manager\n    \
+    \    typed_config:\n          \"@type\": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n\
+    \          stat_prefix: egress_connect\n          codec_type: HTTP1\n        \
+    \  upgrade_configs:\n          - upgrade_type: CONNECT\n          # TODO(liorlieberman):\
+    \ Can we make this cleaner?\n          forward_client_cert_details: SANITIZE_SET\n\
+    \          set_current_client_cert_details:\n            chain: true\n       \
+    \   # Emit the access log as soon as the CONNECT tunnel is established\n     \
+    \     # (atunnel keeps the tunnel open, so the default log-on-close would\n  \
+    \        # not fire during the demo).\n          access_log_options:\n       \
+    \     flush_log_on_tunnel_successfully_established: true\n          access_log:\n\
+    \          - name: envoy.access_loggers.stdout\n            typed_config:\n  \
+    \            \"@type\": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog\n\
+    \              log_format:\n                text_format_source:\n            \
+    \      inline_string: \"[egress] authority=%REQ(:AUTHORITY)% peer_san=%DOWNSTREAM_PEER_URI_SAN%\
+    \ peer_serial=%DOWNSTREAM_PEER_SERIAL% passthrough=%DYNAMIC_METADATA(dev.ate.egress:passthrough_destination)%\
+    \ code=%RESPONSE_CODE% flags=%RESPONSE_FLAGS% up_bytes=%BYTES_RECEIVED% down_bytes=%BYTES_SENT%\\\
+    n\"\n          route_config:\n            name: connect_route\n            virtual_hosts:\n\
+    \            - name: connect\n              domains: [\"*\"]\n              routes:\n\
+    \              - match: { connect_matcher: {} }\n                route:\n    \
+    \              # The tunnel goes to the inner listener, which classifies\n   \
+    \               # what it carries and polices each kind on what it exposes.\n\
+    \                  cluster: inner_internal\n                  # Set request timeout\
+    \ to disabled (0) as CONNECT is a long-running stream.\n                  # There\
+    \ will still be a stream_idle_timeout (5 minutes by default).\n              \
+    \    timeout: 0s\n                  upgrade_configs:\n                  - upgrade_type:\
+    \ CONNECT\n                    connect_config: {}\n          http_filters:\n \
+    \         # The actor's identity, as filter state: headers do not cross the\n\
+    \          # CONNECT boundary, and one sent from inside the tunnel would be\n\
+    \          # actor-controlled. The value is the verified peer certificate's SAN.\n\
+    \          - name: envoy.filters.http.set_filter_state\n            typed_config:\n\
+    \              \"@type\": type.googleapis.com/envoy.extensions.filters.http.set_filter_state.v3.Config\n\
+    \              on_request_headers:\n              - object_key: dev.ate.actor.identity\n\
+    \                factory_key: envoy.string\n                shared_with_upstream:\
+    \ ONCE\n                skip_if_empty: true\n                format_string:\n\
+    \                  text_format_source:\n                    inline_string: \"\
+    %DOWNSTREAM_PEER_URI_SAN%\"\n                  # Without this an absent SAN renders\
+    \ as \"-\", which is a\n                  # non-empty string and fails open at\
+    \ whatever reads it.\n                  omit_empty_values: true\n            \
+    \  # Keys the inner hop's connection pool per actor. Filter state is not\n   \
+    \           # part of the pool key, so without this two actors dialing the same\n\
+    \              # IP:port would share a pool and the second would arrive on the\
+    \ inner\n              # listener as the first. Not shared upstream, so it never\
+    \ acts as an\n              # SNI override.\n              - object_key: envoy.network.upstream_server_name\n\
+    \                skip_if_empty: true\n                format_string:\n       \
+    \           text_format_source:\n                    inline_string: \"%DOWNSTREAM_PEER_URI_SAN%\"\
+    \n                  omit_empty_values: true\n          # The CONNECT leg. The\
+    \ sidecar authenticates the actor from its\n          # certificate and decides\
+    \ the address rules against the CONNECT\n          # authority (see cmd/atenet/internal/router/egress).\
+    \ It answers with\n          # dev.ate.egress:passthrough_destination when an\
+    \ address rule allowed\n          # the destination. Fails closed if the router\
+    \ is down.\n          - name: envoy.filters.http.ext_proc\n            typed_config:\n\
+    \              \"@type\": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor\n\
+    \              stat_prefix: egress_identity\n              grpc_service:\n   \
+    \             envoy_grpc:\n                  cluster_name: ext_proc_server\n \
+    \               timeout: 2s\n              failure_mode_allow: false\n       \
+    \       # Set ext_proc timeout to 5s (from default 200ms) to handle slower ext_proc\
+    \ transactions.\n              message_timeout: 5s\n              # How the ext_proc\
+    \ server tells egress from ingress. It applies\n              # opposite trust\
+    \ models to the two directions, and dispatches on\n              # this Envoy-asserted\
+    \ filter chain name so that no client can\n              # select the egress path\
+    \ by crafting a request. The value must\n              # match EgressFilterChainName\
+    \ in\n              # cmd/atenet/internal/router/extproc/dispatch.go; renaming\
+    \ the\n              # filter chain above without updating it fails closed (the\n\
+    \              # request is classified as ingress, which this --mode=egress\n\
+    \              # instance does not serve, and is refused with a 404).\n      \
+    \        request_attributes:\n              - xds.filter_chain_name\n        \
+    \      processing_mode:\n                request_header_mode: SEND\n         \
+    \       response_header_mode: SKIP\n                request_body_mode: NONE\n\
+    \                response_body_mode: NONE\n                request_trailer_mode:\
+    \ SKIP\n                response_trailer_mode: SKIP\n              # This leg\
+    \ authenticates and never rewrites; the sidecar may\n              # not touch\
+    \ routing or Envoy's own headers here.\n              mutation_rules:\n      \
+    \          disallow_system: true\n                disallow_is_error: true\n  \
+    \            # Envoy silently drops metadata from a namespace not listed\n   \
+    \           # here, and the filter state below would never be set.\n         \
+    \     metadata_options:\n                receiving_namespaces:\n             \
+    \     untyped:\n                  - dev.ate.egress\n          # The address the\
+    \ passthrough chains may dial, from the CONNECT\n          # leg's answer, shared\
+    \ with the inner listener as the filter state\n          # the ORIGINAL_DST cluster\
+    \ reads. With no answer nothing is written\n          # (omit_empty_values plus\
+    \ skip_if_empty), and a TLS or opaque\n          # connection is closed. Must\
+    \ stay after ext_proc.\n          - name: envoy.filters.http.set_filter_state\n\
+    \            typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.filters.http.set_filter_state.v3.Config\n\
+    \              on_request_headers:\n              - object_key: envoy.network.transport_socket.original_dst_address\n\
+    \                skip_if_empty: true\n                shared_with_upstream: ONCE\n\
+    \                format_string:\n                  text_format_source:\n     \
+    \               inline_string: \"%DYNAMIC_METADATA(dev.ate.egress:passthrough_destination)%\"\
+    \n                  omit_empty_values: true\n          - name: envoy.filters.http.router\n\
+    \            typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router\n\
+    \n  # ---------------------------------------------------------------------\n\
+    \  # Listener B: the inner leg, reachable only through inner_internal's\n  # envoy_internal_address.\
+    \ The CONNECT authority is an IP:port, so a Host\n  # is visible only inside the\
+    \ tunnel: cleartext HTTP is decided per\n  # request on its Host and the dialed\
+    \ address, and routed to whichever\n  # the matching rule checked; everything\
+    \ else is passed through to the\n  # address the CONNECT leg allowed, if any.\
+    \ Chain names must match\n  # cmd/atenet/internal/router/extproc/dispatch.go.\n\
+    \  # ---------------------------------------------------------------------\n \
+    \ - name: inner_listener\n    stat_prefix: inner\n    internal_listener: {}\n\
+    \    # Both inspectors wait for the client's first bytes, so a\n    # server-speaks-first\
+    \ protocol (SSH, SMTP, MySQL) would deadlock. On\n    # timeout the connection\
+    \ continues with no transport protocol\n    # detected, which Envoy treats as\
+    \ raw_buffer, so it lands on the raw\n    # passthrough chain and is still policed\
+    \ on its destination.\n    listener_filters_timeout: 1s\n    continue_on_listener_filters_timeout:\
+    \ true\n    listener_filters:\n    - name: envoy.filters.listener.tls_inspector\n\
+    \      typed_config:\n        \"@type\": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector\n\
+    \    - name: envoy.filters.listener.http_inspector\n      typed_config:\n    \
+    \    \"@type\": type.googleapis.com/envoy.extensions.filters.listener.http_inspector.v3.HttpInspector\n\
+    \    filter_chains:\n    # The cleartext chain: ext_proc decides every request\
+    \ and its answer\n    # (dev.ate.egress:dial) picks the route, by name or to the\
+    \ dialed\n    # address. application_protocols confines it to what http_inspector\n\
+    \    # recognized as HTTP.\n    - name: egress_cleartext\n      filter_chain_match:\n\
+    \        transport_protocol: raw_buffer\n        application_protocols: [\"http/1.0\"\
+    , \"http/1.1\", \"h2c\"]\n      filters:\n      - name: envoy.filters.network.http_connection_manager\n\
+    \        typed_config:\n          \"@type\": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n\
+    \          stat_prefix: egress_cleartext\n          # http_inspector steers HTTP/1.0\
+    \ here; without this the codec\n          # answers it 426 before any filter runs.\n\
+    \          http_protocol_options:\n            accept_http_10: true\n        \
+    \  # Without this Envoy answers an Upgrade itself instead of proxying\n      \
+    \    # it, and every WebSocket fails at the handshake.\n          upgrade_configs:\n\
+    \          - upgrade_type: websocket\n          # The outer HCM's stream_idle_timeout\
+    \ already bounds an idle\n          # tunnel.\n          stream_idle_timeout:\
+    \ 0s\n          access_log:\n          - name: envoy.access_loggers.file\n   \
+    \         typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \              path: /dev/stdout\n              log_format:\n                json_format:\n\
+    \                  leg: cleartext\n                  time: \"%START_TIME%\"\n\
+    \                  actor: \"%FILTER_STATE(dev.ate.actor.identity:PLAIN)%\"\n \
+    \                 authority: \"%REQ(:AUTHORITY)%\"\n                  method:\
+    \ \"%REQ(:METHOD)%\"\n                  path: \"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%\"\
+    \n                  protocol: \"%PROTOCOL%\"\n                  status: \"%RESPONSE_CODE%\"\
+    \n                  grpc_status: \"%GRPC_STATUS%\"\n                  flags: \"\
+    %RESPONSE_FLAGS%\"\n                  duration_ms: \"%DURATION%\"\n          \
+    \        bytes_sent: \"%BYTES_SENT%\"\n                  bytes_rcvd: \"%BYTES_RECEIVED%\"\
+    \n                  upstream: \"%UPSTREAM_HOST%\"\n                  upstream_failure:\
+    \ \"%UPSTREAM_TRANSPORT_FAILURE_REASON%\"\n                  termination: \"%CONNECTION_TERMINATION_DETAILS%\"\
+    \n          route_config:\n            name: cleartext\n            virtual_hosts:\n\
+    \            - name: all\n              domains: [\"*\"]\n              # One\
+    \ route per dial the sidecar answers with, and no default:\n              # a\
+    \ request it did not answer for has no route.\n              routes:\n       \
+    \       - match:\n                  prefix: \"/\"\n                  dynamic_metadata:\n\
+    \                  - filter: dev.ate.egress\n                    path: [{ key:\
+    \ dial }]\n                    value: { string_match: { exact: name } }\n    \
+    \            route:\n                  cluster: egress_forward_proxy_cleartext\n\
+    \                  # The route timeout runs until the response completes, which\n\
+    \                  # for SSE or long-poll is never, so 0.\n                  timeout:\
+    \ 0s\n              - match:\n                  prefix: \"/\"\n              \
+    \    dynamic_metadata:\n                  - filter: dev.ate.egress\n         \
+    \           path: [{ key: dial }]\n                    value: { string_match:\
+    \ { exact: address } }\n                route:\n                  cluster: egress_original_dst_cleartext\n\
+    \                  timeout: 0s\n          http_filters:\n          # Every request\
+    \ on this chain is authorized against the actor's\n          # EgressPolicy by\
+    \ the same sidecar; the actor comes from the filter\n          # state the CONNECT\
+    \ leg set, never from a header.\n          - name: envoy.filters.http.ext_proc\n\
+    \            typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor\n\
+    \              stat_prefix: egress_policy_cleartext\n              grpc_service:\n\
+    \                envoy_grpc:\n                  cluster_name: ext_proc_server\n\
+    \                timeout: 5s\n              failure_mode_allow: false\n      \
+    \        # A cache miss in the sidecar is one ateapi round trip; 5s covers that\n\
+    \              # with room, and a slower answer is a denied request, not an allowed\
+    \ one.\n              message_timeout: 5s\n              request_attributes:\n\
+    \              - xds.filter_chain_name\n              - filter_state['dev.ate.actor.identity']\n\
+    \              - filter_state['envoy.network.transport_socket.original_dst_address'].ip\n\
+    \              - filter_state['envoy.network.transport_socket.original_dst_address'].port\n\
+    \              - connection.requested_server_name\n              processing_mode:\n\
+    \                request_header_mode: SEND\n                response_header_mode:\
+    \ SKIP\n                request_body_mode: NONE\n                response_body_mode:\
+    \ NONE\n                request_trailer_mode: SKIP\n                response_trailer_mode:\
+    \ SKIP\n              # The sidecar may add headers but never touch routing: a\
+    \ rewritten\n              # Host would dial a name other than the one policed.\n\
+    \              mutation_rules:\n                disallow_system: true\n      \
+    \          disallow_is_error: true\n              # The answer (dev.ate.egress:dial)\
+    \ picks the route. Envoy drops\n              # metadata from a namespace not\
+    \ listed here, and a request\n              # with no dial has no route.\n   \
+    \           metadata_options:\n                receiving_namespaces:\n       \
+    \           untyped:\n                  - dev.ate.egress\n          # Resolves\
+    \ the Host for the by-name route. It does nothing for a\n          # route to\
+    \ any other kind of cluster.\n          - name: envoy.filters.http.dynamic_forward_proxy\n\
+    \            typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig\n\
+    \              dns_cache_config:\n                name: egress_dns_cache\n   \
+    \             # V4_ONLY resolves nothing on an IPv6-only cluster. ALL\n      \
+    \          # returns both families and enables Happy Eyeballs, so\n          \
+    \      # neither family is stranded.\n                dns_lookup_family: ALL\n\
+    \          - name: envoy.filters.http.router\n            typed_config:\n    \
+    \          \"@type\": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router\n\
+    \n    # The passthrough chains: TLS this gateway does not terminate, and\n   \
+    \ # everything the inspectors could not claim. Two chains because Envoy\n    #\
+    \ buckets filter chains by transport protocol and never falls back out\n    #\
+    \ of a populated bucket: egress_cleartext owns the raw_buffer bucket\n    # with\
+    \ its HTTP application protocols, so a chain matching nothing\n    # would be\
+    \ unreachable. Nothing here decides: tcp_proxy dials the\n    # original_dst_address\
+    \ filter state the CONNECT leg produced, and with\n    # none present the connection\
+    \ is closed before a byte is relayed\n    # (flags UH in the log).\n    - name:\
+    \ egress_tls_passthrough\n      filter_chain_match:\n        transport_protocol:\
+    \ tls\n      filters:\n      - name: envoy.filters.network.tcp_proxy\n       \
+    \ typed_config:\n          \"@type\": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy\n\
+    \          stat_prefix: passthrough\n          cluster: egress_tcp_passthrough\n\
+    \          access_log:\n          - name: envoy.access_loggers.file\n        \
+    \    typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \              path: /dev/stdout\n              log_format:\n                json_format:\n\
+    \                  leg: passthrough\n                  time: \"%START_TIME%\"\n\
+    \                  actor: \"%FILTER_STATE(dev.ate.actor.identity:PLAIN)%\"\n \
+    \                 # What tls_inspector read; nothing is decided on it.\n     \
+    \             sni: \"%REQUESTED_SERVER_NAME%\"\n                  # The address\
+    \ an address rule allowed; null when nothing was dialed.\n                  destination:\
+    \ \"%FILTER_STATE(envoy.network.transport_socket.original_dst_address:PLAIN)%\"\
+    \n                  flags: \"%RESPONSE_FLAGS%\"\n                  duration_ms:\
+    \ \"%DURATION%\"\n                  bytes_sent: \"%BYTES_SENT%\"\n           \
+    \       bytes_rcvd: \"%BYTES_RECEIVED%\"\n                  upstream: \"%UPSTREAM_HOST%\"\
+    \n                  upstream_failure: \"%UPSTREAM_TRANSPORT_FAILURE_REASON%\"\n\
+    \                  termination: \"%CONNECTION_TERMINATION_DETAILS%\"\n\n    #\
+    \ Everything else: an opaque protocol, a client the inspectors could\n    # not\
+    \ classify, or one that said nothing before the sniff timeout.\n    - name: egress_passthrough\n\
+    \      filter_chain_match:\n        transport_protocol: raw_buffer\n      filters:\n\
+    \      - name: envoy.filters.network.tcp_proxy\n        typed_config:\n      \
+    \    \"@type\": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy\n\
+    \          stat_prefix: passthrough\n          cluster: egress_tcp_passthrough\n\
+    \          access_log:\n          - name: envoy.access_loggers.file\n        \
+    \    typed_config:\n              \"@type\": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog\n\
+    \              path: /dev/stdout\n              log_format:\n                json_format:\n\
+    \                  leg: passthrough\n                  time: \"%START_TIME%\"\n\
+    \                  actor: \"%FILTER_STATE(dev.ate.actor.identity:PLAIN)%\"\n \
+    \                 # Always empty here; kept so both passthrough chains log\n \
+    \                 # the same shape.\n                  sni: \"%REQUESTED_SERVER_NAME%\"\
+    \n                  # The address an address rule allowed; null when nothing was\
+    \ dialed.\n                  destination: \"%FILTER_STATE(envoy.network.transport_socket.original_dst_address:PLAIN)%\"\
+    \n                  flags: \"%RESPONSE_FLAGS%\"\n                  duration_ms:\
+    \ \"%DURATION%\"\n                  bytes_sent: \"%BYTES_SENT%\"\n           \
+    \       bytes_rcvd: \"%BYTES_RECEIVED%\"\n                  upstream: \"%UPSTREAM_HOST%\"\
+    \n                  upstream_failure: \"%UPSTREAM_TRANSPORT_FAILURE_REASON%\"\n\
+    \                  termination: \"%CONNECTION_TERMINATION_DETAILS%\"\n\n  clusters:\n\
+    \  # The only way into inner_listener. internal_upstream copies every\n  # filter\
+    \ state object shared with the upstream (the actor identity, and\n  # the passthrough\
+    \ destination when set) onto the inner connection.\n  - name: inner_internal\n\
+    \    connect_timeout: 1s\n    # One CONNECT per connection: the filter state internal_upstream\
+    \ copies\n    # belongs to the tunnel this connection was made for, and a reused\n\
+    \    # connection would carry it into the next tunnel.\n    typed_extension_protocol_options:\n\
+    \      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n        \"@type\"\
+    : type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \        common_http_protocol_options:\n          max_requests_per_connection:\
+    \ 1\n        explicit_http_config:\n          http_protocol_options: {}\n    transport_socket:\n\
+    \      name: envoy.transport_sockets.internal_upstream\n      typed_config:\n\
+    \        \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.internal_upstream.v3.InternalUpstreamTransport\n\
+    \        transport_socket:\n          name: envoy.transport_sockets.raw_buffer\n\
+    \          typed_config:\n            \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.raw_buffer.v3.RawBuffer\n\
+    \    load_assignment:\n      cluster_name: inner_internal\n      endpoints:\n\
+    \      - lb_endpoints:\n        - endpoint:\n            address:\n          \
+    \    envoy_internal_address:\n                server_listener_name: inner_listener\n\
+    \n  # ext_proc gRPC server = the atenet router, co-located in this pod as a\n\
+    \  # sidecar and called over localhost (same topology the ingress gateway uses\n\
+    \  # for its dataplane + ext_proc).\n  - name: ext_proc_server\n    type: STATIC\n\
+    \    lb_policy: ROUND_ROBIN\n    connect_timeout: 1s\n    typed_extension_protocol_options:\n\
+    \      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n        \"@type\"\
+    : type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \        explicit_http_config:\n          http2_protocol_options: {}\n    load_assignment:\n\
+    \      cluster_name: ext_proc_server\n      endpoints:\n      - lb_endpoints:\n\
+    \        - endpoint:\n            address:\n              socket_address:\n  \
+    \              address: 127.0.0.1\n                port_value: 50051\n\n  # The\
+    \ cleartext chain's upstream. The actor sent plaintext; this gateway\n  # does\
+    \ not upgrade it to TLS.\n  - name: egress_forward_proxy_cleartext\n    lb_policy:\
+    \ CLUSTER_PROVIDED\n    connect_timeout: 5s\n    cluster_type:\n      name: envoy.clusters.dynamic_forward_proxy\n\
+    \      typed_config:\n        \"@type\": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig\n\
+    \        dns_cache_config:\n          name: egress_dns_cache\n          dns_lookup_family:\
+    \ ALL\n        # Envoy refuses to build a dynamic forward proxy cluster without\n\
+    \        # auto_sni and auto_san_validation unless this is set. There is no\n\
+    \        # upstream TLS here, so both would be no-ops.\n        allow_insecure_cluster_options:\
+    \ true\n    typed_extension_protocol_options:\n      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n\
+    \        \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \        use_downstream_protocol_config:\n          http_protocol_options: {}\n\
+    \          http2_protocol_options: {}\n\n  # The cleartext chain's by-address\
+    \ upstream: the address the actor\n  # dialed, from the same original_dst_address\
+    \ filter state the passthrough\n  # chains use. Plaintext, like the forward proxy\
+    \ above.\n  - name: egress_original_dst_cleartext\n    type: ORIGINAL_DST\n  \
+    \  lb_policy: CLUSTER_PROVIDED\n    connect_timeout: 5s\n    typed_extension_protocol_options:\n\
+    \      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n        \"@type\"\
+    : type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \        use_downstream_protocol_config:\n          http_protocol_options: {}\n\
+    \          http2_protocol_options: {}\n\n  # The passthrough chains' upstream.\
+    \ It dials the original_dst_address\n  # filter state the CONNECT leg produced\
+    \ and has no other source of an\n  # address; without it the connection is closed.\n\
+    \  - name: egress_tcp_passthrough\n    type: ORIGINAL_DST\n    lb_policy: CLUSTER_PROVIDED\n\
+    \    connect_timeout: 5s\n"
+  sds-servicedns-cert.yaml: "resources:\n- \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret\n\
+    \  name: servicedns_serving_cert\n  tls_certificate:\n    certificate_chain: {\
+    \ filename: /run/servicedns.podcert.ate.dev/credential-bundle.pem }\n    private_key:\
+    \ { filename: /run/servicedns.podcert.ate.dev/credential-bundle.pem }\n    watched_directory:\
+    \ { path: /run/servicedns.podcert.ate.dev }\n"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: atenet-egress
+  namespace: ate-system
+---
+apiVersion: v1
+data:
+  envoy.yaml: "admin:\n  address:\n    socket_address:\n      # ipv4_compat keeps\
+    \ `kubectl port-forward` to the admin port working;\n      # in-pod callers dial\
+    \ localhost and need no help.\n      address: \"::\"\n      ipv4_compat: true\n\
+    \      port_value: 9901\n\nnode:\n  id: substrate-envoy-node\n  cluster: substrate-router-cluster\n\
+    \n# Required for main_internal (see xds.go's buildMainInternalListener):\n# Envoy\
+    \ rejects any Listener.internal_listener without this registered,\n# with \"InternalListener\
+    \ bootstrap extension is mandatory\".\nbootstrap_extensions:\n- name: envoy.bootstrap.internal_listener\n\
+    \  typed_config:\n    \"@type\": type.googleapis.com/envoy.extensions.bootstrap.internal_listener.v3.InternalListener\n\
+    \ndynamic_resources:\n  lds_config:\n    resource_api_version: V3\n    ads: {}\n\
+    \  cds_config:\n    resource_api_version: V3\n    ads: {}\n  ads_config:\n   \
+    \ api_type: GRPC\n    transport_api_version: V3\n    grpc_services:\n    - envoy_grpc:\n\
+    \        cluster_name: xds_cluster\n\nstatic_resources:\n  clusters:\n  - name:\
+    \ xds_cluster\n    connect_timeout: 0.25s\n    type: STRICT_DNS\n    lb_policy:\
+    \ ROUND_ROBIN\n    typed_extension_protocol_options:\n      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n\
+    \        \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n\
+    \        explicit_http_config:\n          http2_protocol_options: {}\n    load_assignment:\n\
+    \      cluster_name: xds_cluster\n      endpoints:\n      - lb_endpoints:\n  \
+    \      - endpoint:\n            address:\n              socket_address:\n    \
+    \            address: 127.0.0.1\n                port_value: 18000\n"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: atenet-router-envoy-config
+  namespace: ate-system
+---
+apiVersion: v1
+data:
+  pg_hba.conf: '# Local socket access is limited to processes in this pod and is used
+    by
+
+    # health checks, the workload''s idempotent database bootstrap, and the
+
+    # tls-reloader sidecar''s configuration reloads.
+
+    local all all trust
+
+    # PostgreSQL verifies client certificates against the pod-identity CA. It
+
+    # does not need its own serving CA because it never verifies its server certificate.
+
+    hostssl all all all trust clientcert=verify-ca
+
+    '
+  postgresql.conf: 'listen_addresses = ''*''
+
+    ssl = on
+
+    ssl_cert_file = ''/run/servicedns.podcert.ate.dev/credential-bundle.pem''
+
+    ssl_key_file = ''/run/servicedns.podcert.ate.dev/credential-bundle.pem''
+
+    ssl_ca_file = ''/run/podidentity.podcert.ate.dev/trust-bundle.pem''
+
+    hba_file = ''/etc/postgresql/pg_hba.conf''
+
+    '
+  reload-tls.sh: "# PostgreSQL opens ssl_cert_file, ssl_key_file and ssl_ca_file at\
+    \ startup\n# and on SIGHUP, and nowhere else. The kubelet replaces the projected\
+    \ pod\n# certificate in place about 30 minutes before it expires, so without this\n\
+    # loop the server keeps presenting the certificate it booted with until it\n#\
+    \ expires about a day later and every client stops trusting it.\nset -eu\n\n#\
+    \ As PID 1 this shell only sees SIGTERM if a handler is installed, and only\n\
+    # acts on it between commands, so the sleep below runs in the background\n# and\
+    \ is waited on. Without both halves the pod takes the full termination\n# grace\
+    \ period to go away.\ntrap 'exit 0' TERM INT\n\nCERT=/run/servicedns.podcert.ate.dev/credential-bundle.pem\n\
+    CA=/run/podidentity.podcert.ate.dev/trust-bundle.pem\n\n# Comfortably inside the\
+    \ 30m headroom (notAfter - beginRefreshAt) that\n# cmd/podcertcontroller/internal/servicednssigner/servicednssigner.go\n\
+    # leaves; hashing two small files costs nothing.\nINTERVAL=60\n\nreloaded=\"\"\
+    \nwhile true; do\n  current=\"$(sha256sum \"${CERT}\" \"${CA}\")\"\n  # Reloading\
+    \ fails until the server is accepting connections, which is\n  # where every pod\
+    \ starts out, so only record a hash once it has worked.\n  # Starting empty also\
+    \ means a restart of this container costs one\n  # redundant reload rather than\
+    \ a missed one.\n  if [ \"${current}\" != \"${reloaded}\" ] \\\n    && psql -U\
+    \ postgres -d postgres -Atc 'SELECT pg_reload_conf()' >/dev/null 2>&1; then\n\
+    \    reloaded=\"${current}\"\n    echo \"$(date -u +%FT%TZ) reloaded TLS configuration\"\
+    \n  fi\n  sleep \"${INTERVAL}\" &\n  wait $!\ndone\n"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: postgres-config
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  name: ate-api-server
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    apps: ate-client
+  name: ate-client
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    apps: ate-controller
+  name: ate-controller
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  name: atelet
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  name: atenet-egress
+  namespace: ate-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    app: atenet-router
+  name: atenet-router
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations: {}
+  name: ate-controller
+  namespace: ate-system
+rules:
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations: {}
+  name: atelet-endpointslices
+  namespace: ate-system
+rules:
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations: {}
+  name: atenet-router-endpointslices
+  namespace: ate-system
+rules:
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: ate-controller
+  namespace: ate-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ate-controller
+subjects:
+- kind: ServiceAccount
+  name: ate-controller
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: ate-prometheus
+  namespace: ate-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ate-prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: otel-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: atelet-endpointslices
+  namespace: ate-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: atelet-endpointslices
+subjects:
+- kind: ServiceAccount
+  name: atelet
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: atenet-router-endpointslices
+  namespace: ate-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: atenet-router-endpointslices
+subjects:
+- kind: ServiceAccount
+  name: atenet-router
+  namespace: ate-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: podcertificate-controller-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: podcertificate-controller
+  name: podcertificate-controller
+  namespace: podcertificate-controller-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: podcertificate-controller
+  template:
+    metadata:
+      labels:
+        app: podcertificate-controller
+    spec:
+      containers:
+      - args:
+        - --in-cluster=true
+        - --sharding-pod-namespace=$(POD_NAMESPACE)
+        - --sharding-pod-name=$(POD_NAME)
+        - --sharding-pod-uid=$(POD_UID)
+        - --sharding-application-name=podcertificate-controller
+        - --service-dns-ca-pool=/run/ca-state/service-dns-pool.json
+        - --pod-identity-ca-pool=/run/ca-state/pod-identity-pool.json
+        - --workers-per-signer=$(WORKERS_PER_SIGNER)
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: WORKERS_PER_SIGNER
+          value: '1'
+        image: localhost:5001/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470@sha256:3e7772cbfa4241cf712726ee20863050d02f91b588e7397d5c5f621edb723278
+        name: controller
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_BIND_SERVICE
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /run/ca-state
+          name: ca-state
+      dnsPolicy: Default
+      nodeSelector:
+        kubernetes.io/os: linux
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: ca-state
+        projected:
+          sources:
+          - secret:
+              items:
+              - key: pool
+                path: service-dns-pool.json
+              name: service-dns-ca-pool
+          - secret:
+              items:
+              - key: pool
+                path: pod-identity-pool.json
+              name: pod-identity-ca-pool
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations: {}
+  name: coordinator
+  namespace: podcertificate-controller-system
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: podcertificate-controller-is-a-coordinator
+  namespace: podcertificate-controller-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coordinator
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: podcertificate-controller-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: jaeger
+  name: jaeger
+  namespace: otel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+      - image: jaegertracing/all-in-one:1.55@sha256:f6b5d09073f14f76873d300f565a6691d815e81bea8e07e1dc3ff67e0596dd4e
+        name: jaeger
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 16686
+          name: query
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: opentelemetry-collector
+  name: opentelemetry-collector
+  namespace: otel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opentelemetry-collector
+  template:
+    metadata:
+      labels:
+        app: opentelemetry-collector
+    spec:
+      containers:
+      - args:
+        - --config=/conf/otel-collector-config.yaml
+        image: otel/opentelemetry-collector-contrib:0.157.0@sha256:f2f01157055a9b2aab9df7118e1f1c9abf345e99b23bc7a2bc791db374a7d0f6
+        name: otel-collector
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 8889
+          name: prom
+        - containerPort: 8888
+          name: self
+        volumeMounts:
+        - mountPath: /conf
+          name: config
+      volumes:
+      - configMap:
+          items:
+          - key: otel-collector-config.yaml
+            path: otel-collector-config.yaml
+          name: opentelemetry-collector-config
+        name: config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app: prometheus
+  name: prometheus
+  namespace: otel-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - args:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        image: prom/prometheus:v3.5.3@sha256:ddc2493835a1509976d5e4e0c94199c4f843ce1f42dd6bcfc8231ba734a93ff7
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /-/healthy
+            port: web
+          initialDelaySeconds: 5
+          periodSeconds: 15
+          timeoutSeconds: 3
+        name: prometheus
+        ports:
+        - containerPort: 9090
+          name: web
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /-/ready
+            port: web
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /etc/prometheus
+          name: config
+          readOnly: true
+        - mountPath: /prometheus
+          name: storage
+        - mountPath: /tmp
+          name: tmp
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: prometheus
+      volumes:
+      - configMap:
+          name: prometheus-config
+        name: config
+      - emptyDir: {}
+        name: storage
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: jaeger
+  namespace: otel-system
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: query
+    port: 16686
+    targetPort: 16686
+  selector:
+    app: jaeger
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  name: opentelemetry-collector
+  namespace: otel-system
+spec:
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: prom
+    port: 8889
+    targetPort: 8889
+  - name: self
+    port: 8888
+    targetPort: 8888
+  selector:
+    app: opentelemetry-collector
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  labels:
+    app: prometheus
+  name: prometheus
+  namespace: otel-system
+spec:
+  ports:
+  - name: web
+    port: 9090
+    targetPort: web
+  selector:
+    app: prometheus
+  type: ClusterIP
+---
+apiVersion: v1
+data:
+  otel-collector-config.yaml: "receivers:\n  otlp:\n    protocols:\n      grpc:\n\
+    \        endpoint: 0.0.0.0:4317\n      http:\n        endpoint: 0.0.0.0:4318\n\
+    processors:\n  batch:\n\n  # The count connector below sends deltas, and the Prometheus\
+    \ exporter\n  # reads the new start timestamp of each batch as a reset. Without\n\
+    \  # deltatocumulative the counts do not accumulate and each scrape shows\n  #\
+    \ only the last batch.\n  #\n  # max_streams bounds the memory. A stream is for\
+    \ each process and\n  # count, and not for each service, because serverboot gives\
+    \ each\n  # process its own service.instance.id. Above the limit new streams drop\n\
+    \  # with no log line and the totals become too low.\n  deltatocumulative:\n \
+    \   max_streams: 10000\n\n# The volume of telemetry for each service, the same\
+    \ two counts that\n# benchmarking/telemetry/meter.yaml gives on GKE. On GKE the\
+    \ managed\n# collector cannot hold a connector, thus a measurement there needs\
+    \ a\n# second collector in front of it. Here the collector is ours, thus the\n\
+    # counts belong in it and kind needs no meter.\nconnectors:\n  count:\n    spans:\n\
+    \      substrate_spans:\n        description: Spans received, by emitting service.\n\
+    \        attributes:\n          # The connector reads each key from the attributes\
+    \ of the item,\n          # then the scope, then the resource, thus service.name\
+    \ resolves\n          # from the resource with no transform in front of it. The\n\
+    \          # Prometheus exporter writes the key as service_name.\n          #\n\
+    \          # Without a default value the connector removes each item that\n  \
+    \        # has no service.name from the count. The item does not show as\n   \
+    \       # unknown, and the totals are too low with no error message.\n       \
+    \   - key: service.name\n            default_value: unknown\n    datapoints:\n\
+    \      substrate_datapoints:\n        description: Metric datapoints received,\
+    \ by emitting service.\n        attributes:\n          - key: service.name\n \
+    \           default_value: unknown\n\n    # The actor lifecycle events. The key\
+    \ is ate.actor.state and not the\n    # event name: the connector reads the attributes\
+    \ of the item, and the\n    # event name is a top level field of the record, which\
+    \ would need a\n    # transform in front of this. The state is bounded and is\
+    \ the more\n    # useful of the two anyway.\n    logs:\n      substrate_actor_state_changes:\n\
+    \        description: Actor state change events received, by state.\n        attributes:\n\
+    \          - key: service.name\n            default_value: unknown\n         \
+    \ # No default: drops workload logs, which have no such key.\n          - key:\
+    \ ate.actor.state\n\nexporters:\n  otlp/jaeger:\n    endpoint: jaeger.otel-system.svc.cluster.local:4317\n\
+    \    tls:\n      insecure: true\n  prometheus:\n    endpoint: 0.0.0.0:8889\n \
+    \ debug:\n    verbosity: detailed\nservice:\n  pipelines:\n    traces:\n     \
+    \ receivers: [otlp]\n      processors: [batch]\n      exporters: [otlp/jaeger,\
+    \ debug]\n    metrics:\n      receivers: [otlp]\n      processors: [batch]\n \
+    \     exporters: [prometheus, debug]\n\n    # Every ate event, plus any workload\
+    \ that sends OTLP logs. debug is the\n    # only exporter: kind has no log store,\
+    \ and the e2e read-back goes\n    # through the count connector below. Never put\
+    \ a sampler or a filter\n    # here. A consumer takes the last event for an actor,\
+    \ thus a dropped\n    # record reports a stale state with no sign that anything\
+    \ is missing.\n    logs:\n      receivers: [otlp]\n      processors: [batch]\n\
+    \      exporters: [debug]\n\n    # The count pipelines read the same receiver\
+    \ as the pipelines above,\n    # and they only count. The connector declares MutatesData\
+    \ false, thus\n    # it changes nothing that reaches Jaeger or Prometheus.\n \
+    \   traces/count:\n      receivers: [otlp]\n      exporters: [count]\n    metrics/count:\n\
+    \      receivers: [otlp]\n      exporters: [count]\n    logs/count:\n      receivers:\
+    \ [otlp]\n      exporters: [count]\n\n    # The counts that the connector makes,\
+    \ out to the Prometheus exporter.\n    metrics/count-out:\n      receivers: [count]\n\
+    \      processors: [deltatocumulative]\n      exporters: [prometheus]\n\n  # The\
+    \ otelcol_* counters of the collector itself. A service that reports\n  # zero\
+    \ volume gives no data by itself: otelcol_receiver_accepted_* shows\n  # the difference\
+    \ between a service that sent nothing and data that never\n  # arrived. The default\
+    \ reader binds to localhost, thus give the address\n  # of each interface so the\
+    \ Prometheus pod can reach it.\n  #\n  # The level stays at the default. It already\
+    \ gives each counter above,\n  # and detailed adds histograms only, which no query\
+    \ here reads.\n  telemetry:\n    metrics:\n      readers:\n        - pull:\n \
+    \           exporter:\n              prometheus:\n                host: 0.0.0.0\n\
+    \                port: 8888\n"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: opentelemetry-collector-config
+  namespace: otel-system
+---
+apiVersion: v1
+data:
+  prometheus.yml: "# The kubernetes-pods scrape job below is adapted from the\n# prometheus-community\
+    \ Helm chart's job of the same name:\n# https://github.com/prometheus-community/helm-charts/blob/main/charts/prometheus/values.yaml\n\
+    global:\n  scrape_interval: 15s\nscrape_configs:\n  - job_name: kubernetes-pods\n\
+    \    kubernetes_sd_configs:\n      - role: pod\n        namespaces:\n        \
+    \  names:\n            - ate-system\n            - otel-system\n    relabel_configs:\n\
+    \      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]\n\
+    \        action: keep\n        regex: \"true\"\n      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]\n\
+    \        action: replace\n        target_label: __metrics_path__\n        regex:\
+    \ (.+)\n      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port,\
+    \ __meta_kubernetes_pod_ip]\n        action: replace\n        regex: (\\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})\n\
+    \        replacement: '[$2]:$1'\n        target_label: __address__\n      - source_labels:\
+    \ [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]\n\
+    \        action: replace\n        regex: (\\d+);((([0-9]+?)(\\.|$)){4})\n    \
+    \    replacement: $2:$1\n        target_label: __address__\n      - action: labelmap\n\
+    \        regex: __meta_kubernetes_pod_label_(.+)\n      - source_labels: [__meta_kubernetes_namespace]\n\
+    \        action: replace\n        target_label: namespace\n      - source_labels:\
+    \ [__meta_kubernetes_pod_name]\n        action: replace\n        target_label:\
+    \ pod\n      - source_labels: [__meta_kubernetes_pod_node_name]\n        action:\
+    \ replace\n        target_label: node\n      - source_labels: [__meta_kubernetes_pod_phase]\n\
+    \        action: drop\n        regex: Pending|Succeeded|Failed\n\n  # The two\
+    \ read ports of the collector: 8889 carries the substrate_*\n  # counts of the\
+    \ count connector, and 8888 the otelcol_* counters of the\n  # collector itself.\
+    \ The two go together: when a service reports zero\n  # volume, otelcol_receiver_accepted_*\
+    \ shows the difference between a\n  # service that sent nothing and data that\
+    \ never arrived.\n  #\n  # This job, and not the annotation job above, reads the\
+    \ collector. The\n  # annotation can name one port only, thus the collector pod\
+    \ carries no\n  # prometheus.io/scrape annotation. Read the two ports here instead.\n\
+    \  #\n  # 8889 re-exports each metric that the pipelines push, and the pods of\n\
+    \  # ate-api-server, atelet, and atenet-router already carry the annotation\n\
+    \  # on 9090. Keep the substrate_* and otelcol_* names only, or every\n  # series\
+    \ of those services arrives twice and sum() gives double.\n  - job_name: otel-collector-self\n\
+    \    kubernetes_sd_configs:\n      - role: pod\n        namespaces:\n        \
+    \  names:\n            - otel-system\n    relabel_configs:\n      - source_labels:\n\
+    \          - __meta_kubernetes_pod_label_app\n          - __meta_kubernetes_pod_container_port_number\n\
+    \        action: keep\n        regex: opentelemetry-collector;(8888|8889)\n  \
+    \    - source_labels: [__meta_kubernetes_pod_name]\n        action: replace\n\
+    \        target_label: pod\n      - source_labels: [__meta_kubernetes_namespace]\n\
+    \        action: replace\n        target_label: namespace\n    metric_relabel_configs:\n\
+    \      - source_labels: [__name__]\n        action: keep\n        regex: (substrate|otelcol)_.*\n"
+kind: ConfigMap
+metadata:
+  annotations: {}
+  name: prometheus-config
+  namespace: otel-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  name: prometheus
+  namespace: otel-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations: {}
+  name: ate-prometheus
+  namespace: otel-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ate-prometheus
+subjects:
+- kind: ServiceAccount
+  name: prometheus
+  namespace: otel-system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: csidriverconfigs.ate.dev
+spec:
+  group: ate.dev
+  names:
+    kind: CSIDriverConfig
+    listKind: CSIDriverConfigList
+    plural: csidriverconfigs
+    shortNames:
+    - csidriverconfig
+    singular: csidriverconfig
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.driverName
+      name: Driver
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CSIDriverConfig is the Schema for the csidriverconfigs API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
+              may reject unrecognized values.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
+              Cannot be updated.
+
+              In CamelCase.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CSIDriverConfigSpec defines the desired state of CSIDriverConfig
+            properties:
+              controllerEndpoint:
+                description: 'ControllerEndpoint is the gRPC endpoint for the CSI
+                  Controller service.
+
+                  Must be a valid network URI (e.g. dns:///csi-service:9000 or tcp://127.0.0.1:9000).'
+                pattern: ^(tcp|dns)://.+$
+                type: string
+              driverName:
+                description: 'DriverName is the standard CSI driver name (e.g. "hostpath.csi.k8s.io").
+
+                  Matches the StorageClass referenced in ActorTemplate volume definitions.'
+                maxLength: 63
+                minLength: 1
+                pattern: ^(substrate\.io/)?([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)$
+                type: string
+              nodeSocketOverride:
+                description: 'NodeSocketOverride is an optional override for the CSI
+                  Node service socket
+
+                  on the worker nodes. If empty, ATE defaults to unix:///var/lib/kubelet/plugins/[DriverName]/csi.sock.'
+                pattern: ^unix://.+$
+                type: string
+              tls:
+                description: TLS configures TLS/mTLS for the connection to the ControllerEndpoint.
+                properties:
+                  enabled:
+                    description: Enabled controls whether TLS is used.
+                    type: boolean
+                  serverName:
+                    description: ServerName override for TLS verification.
+                    type: string
+                  usePodIdentity:
+                    description: UsePodIdentity indicates whether to reuse Substrate's
+                      Pod Identity (SPIFFE) certificates.
+                    type: boolean
+                required:
+                - enabled
+                type: object
+                x-kubernetes-validations:
+                - message: tls.usePodIdentity must be true when tls.enabled is true;
+                    manual certificates are not yet supported
+                  rule: '!self.enabled || (has(self.usePodIdentity) && self.usePodIdentity)'
+            required:
+            - controllerEndpoint
+            - driverName
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: sandboxconfigs.ate.dev
+spec:
+  group: ate.dev
+  names:
+    kind: SandboxConfig
+    listKind: SandboxConfigList
+    plural: sandboxconfigs
+    shortNames:
+    - sandboxconfig
+    singular: sandboxconfig
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.sandboxClass
+      name: Class
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: 'SandboxConfig is cluster-scoped configuration describing the
+          sandbox binaries
+
+          for a sandbox runtime family. It is referenced by an ActorTemplate''s
+
+          sandbox_config.config_name (required) and decouples
+
+          sandbox binary selection from the workload definition.'
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
+              may reject unrecognized values.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
+              Cannot be updated.
+
+              In CamelCase.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of SandboxConfig
+            properties:
+              assets:
+                additionalProperties:
+                  additionalProperties:
+                    description: 'AssetFile is one content-addressed file that atelet
+                      fetches for a sandbox
+
+                      runtime (e.g. the gVisor runsc binary, or a micro-VM kernel/firmware/config).'
+                    properties:
+                      sha256:
+                        description: 'SHA256 is the lower-case hex SHA256 of the asset.
+                          It both names the cached
+
+                          file (preventing collisions) and verifies the download''s
+                          integrity.'
+                        pattern: ^[a-f0-9]{64}$
+                        type: string
+                      url:
+                        description: 'URL is where to download the asset from (e.g.
+                          a gs:// URL). It may be
+
+                          fetched anonymously or with credentials depending on atelet''s
+
+                          configuration.'
+                        minLength: 1
+                        type: string
+                    required:
+                    - sha256
+                    - url
+                    type: object
+                  type: object
+                description: 'Assets is the set of files atelet fetches for this runtime,
+                  keyed first by
+
+                  architecture (GOARCH, e.g. "amd64", "arm64") and then by asset name.
+                  The
+
+                  asset names are interpreted by the sandbox backend: gVisor expects
+                  a
+
+                  "gvisor" asset (the release''s gvisor.tar.zstd, which atelet extracts
+                  so
+
+                  the gvisor-bin/ helpers sit next to runsc; a legacy bare-binary
+                  "runsc"
+
+                  asset is still accepted); a micro-VM backend expects several (e.g.
+
+                  "cloud-hypervisor", "kata-kernel", "kata-image"). The schema is
+
+                  intentionally generic; per-class requirements are enforced by a
+
+                  ValidatingAdmissionPolicy.'
+                type: object
+              pauseImage:
+                description: "PauseImage is the container image used as the root sandbox\
+                  \ container.\nIt holds the sandbox's namespaces and runs no workload\
+                  \ code, so it is an\nimplementation detail of the sandbox rather\
+                  \ than something actor authors\nchoose. It is captured in the snapshot\
+                  \ manifest alongside the sandbox\nbinaries, so a restore always\
+                  \ re-creates the sandbox from the same image\nthe snapshot was taken\
+                  \ with.\n\nTypically, set it to [1] for on-gcp, and [2] for off-gcp\n\
+                  \n  - [1] gcr.io/gke-release/pause@sha256:bcbd57ba5653580ec647b16d8163cdd1112df3609129b01f912a8032e48265da\n\
+                  \  - [2] registry.k8s.io/pause:3.10.2@sha256:f548e0e8e3dc1896ca956272154dde3314e8cc4fde0a57577ee9fa1c63f5baf4"
+                type: string
+                x-kubernetes-validations:
+                - message: All images must include a digest
+                  rule: self.contains('@')
+              sandboxClass:
+                default: gvisor
+                description: 'SandboxClass is the sandbox runtime family this config
+                  applies to. An
+
+                  ActorTemplate only uses SandboxConfigs whose SandboxClass matches
+                  its
+
+                  sandbox_config.sandbox_class.'
+                enum:
+                - gvisor
+                - microvm
+                type: string
+            required:
+            - pauseImage
+            - sandboxClass
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: workerpools.ate.dev
+spec:
+  group: ate.dev
+  names:
+    kind: WorkerPool
+    listKind: WorkerPoolList
+    plural: workerpools
+    shortNames:
+    - workerpool
+    singular: workerpool
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.replicas
+      name: Desired
+      type: integer
+    - jsonPath: .status.replicas
+      name: Replicas
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WorkerPool is the Schema for the workerpools API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
+              may reject unrecognized values.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
+              Cannot be updated.
+
+              In CamelCase.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of WorkerPool
+            properties:
+              replicas:
+                description: Replicas is the number of worker pods to run.
+                format: int32
+                minimum: 0
+                type: integer
+              sandboxClass:
+                default: gvisor
+                description: 'SandboxClass selects the sandbox runtime family for
+                  this pool, which drives
+
+                  the worker pod shape (KVM/vhost device mounts and node placement).
+                  The
+
+                  concrete binary is still selected by WorkerImage. Defaults to gvisor.
+
+                  The sandbox binaries themselves come from the SandboxConfig each
+
+                  ActorTemplate names (required).
+
+
+                  See Also: TODOs in ActorTemplate SandboxClass'
+                enum:
+                - gvisor
+                - microvm
+                type: string
+              template:
+                description: Template holds optional metadata, scheduling, and resource
+                  settings for worker workloads.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: 'Annotations are added to the generated Deployment
+                      and worker pods. Keys
+
+                      in the ate.dev domain and its subdomains are reserved for controllers.'
+                    maxProperties: 64
+                    type: object
+                    x-kubernetes-validations:
+                    - message: ate.dev and its subdomains are reserved
+                      rule: self.all(key, !key.startsWith('ate.dev/') && !key.contains('.ate.dev/'))
+                    - message: annotation keys must be valid Kubernetes qualified
+                        names
+                      rule: self.all(key, !format.qualifiedName().validate(key).hasValue())
+                  labels:
+                    additionalProperties:
+                      description: 'WorkerPoolLabelValue is a Kubernetes label value
+                        for generated worker
+
+                        workloads.'
+                      maxLength: 63
+                      pattern: ^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$
+                      type: string
+                    description: 'Labels are added to the generated Deployment and
+                      worker pods. Keys in
+
+                      the ate.dev domain and its subdomains are reserved for controllers.'
+                    maxProperties: 64
+                    type: object
+                    x-kubernetes-validations:
+                    - message: ate.dev and its subdomains are reserved
+                      rule: self.all(key, !key.startsWith('ate.dev/') && !key.contains('.ate.dev/'))
+                    - message: label keys must be valid Kubernetes qualified names
+                      rule: self.all(key, !format.qualifiedName().validate(key).hasValue())
+                  nodeAffinity:
+                    description: 'NodeAffinity scheduling rules for the worker pods.
+                      Mapped to
+
+                      spec.affinity.nodeAffinity on the pod.'
+                    properties:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        description: 'The scheduler will prefer to schedule pods to
+                          nodes that satisfy
+
+                          the affinity expressions specified by this field, but it
+                          may choose
+
+                          a node that violates one or more of the expressions. The
+                          node that is
+
+                          most preferred is the one with the greatest sum of weights,
+                          i.e.
+
+                          for each node that meets all of the scheduling requirements
+                          (resource
+
+                          request, requiredDuringScheduling affinity expressions,
+                          etc.),
+
+                          compute a sum by iterating through the elements of this
+                          field and adding
+
+                          "weight" to the sum if the node matches the corresponding
+                          matchExpressions; the
+
+                          node(s) with the highest sum are the most preferred.'
+                        items:
+                          description: 'An empty preferred scheduling term matches
+                            all objects with implicit weight 0
+
+                            (i.e. it''s a no-op). A null preferred scheduling term
+                            matches no objects (i.e. is also a no-op).'
+                          properties:
+                            preference:
+                              description: A node selector term, associated with the
+                                corresponding weight.
+                              properties:
+                                matchExpressions:
+                                  description: A list of node selector requirements
+                                    by node's labels.
+                                  items:
+                                    description: 'A node selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator
+
+                                      that relates the key and values.'
+                                    properties:
+                                      key:
+                                        description: The label key that the selector
+                                          applies to.
+                                        type: string
+                                      operator:
+                                        description: 'Represents a key''s relationship
+                                          to a set of values.
+
+                                          Valid operators are In, NotIn, Exists, DoesNotExist.
+                                          Gt, and Lt.'
+                                        type: string
+                                      values:
+                                        description: 'An array of string values. If
+                                          the operator is In or NotIn,
+
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist,
+
+                                          the values array must be empty. If the operator
+                                          is Gt or Lt, the values
+
+                                          array must have a single element, which
+                                          will be interpreted as an integer.
+
+                                          This array is replaced during a strategic
+                                          merge patch.'
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchFields:
+                                  description: A list of node selector requirements
+                                    by node's fields.
+                                  items:
+                                    description: 'A node selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator
+
+                                      that relates the key and values.'
+                                    properties:
+                                      key:
+                                        description: The label key that the selector
+                                          applies to.
+                                        type: string
+                                      operator:
+                                        description: 'Represents a key''s relationship
+                                          to a set of values.
+
+                                          Valid operators are In, NotIn, Exists, DoesNotExist.
+                                          Gt, and Lt.'
+                                        type: string
+                                      values:
+                                        description: 'An array of string values. If
+                                          the operator is In or NotIn,
+
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist,
+
+                                          the values array must be empty. If the operator
+                                          is Gt or Lt, the values
+
+                                          array must have a single element, which
+                                          will be interpreted as an integer.
+
+                                          This array is replaced during a strategic
+                                          merge patch.'
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            weight:
+                              description: Weight associated with matching the corresponding
+                                nodeSelectorTerm, in the range 1-100.
+                              format: int32
+                              type: integer
+                          required:
+                          - preference
+                          - weight
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        description: 'If the affinity requirements specified by this
+                          field are not met at
+
+                          scheduling time, the pod will not be scheduled onto the
+                          node.
+
+                          If the affinity requirements specified by this field cease
+                          to be met
+
+                          at some point during pod execution (e.g. due to an update),
+                          the system
+
+                          may or may not try to eventually evict the pod from its
+                          node.'
+                        properties:
+                          nodeSelectorTerms:
+                            description: Required. A list of node selector terms.
+                              The terms are ORed.
+                            items:
+                              description: 'A null or empty node selector term matches
+                                no objects. The requirements of
+
+                                them are ANDed.
+
+                                The TopologySelectorTerm type implements a subset
+                                of the NodeSelectorTerm.'
+                              properties:
+                                matchExpressions:
+                                  description: A list of node selector requirements
+                                    by node's labels.
+                                  items:
+                                    description: 'A node selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator
+
+                                      that relates the key and values.'
+                                    properties:
+                                      key:
+                                        description: The label key that the selector
+                                          applies to.
+                                        type: string
+                                      operator:
+                                        description: 'Represents a key''s relationship
+                                          to a set of values.
+
+                                          Valid operators are In, NotIn, Exists, DoesNotExist.
+                                          Gt, and Lt.'
+                                        type: string
+                                      values:
+                                        description: 'An array of string values. If
+                                          the operator is In or NotIn,
+
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist,
+
+                                          the values array must be empty. If the operator
+                                          is Gt or Lt, the values
+
+                                          array must have a single element, which
+                                          will be interpreted as an integer.
+
+                                          This array is replaced during a strategic
+                                          merge patch.'
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchFields:
+                                  description: A list of node selector requirements
+                                    by node's fields.
+                                  items:
+                                    description: 'A node selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator
+
+                                      that relates the key and values.'
+                                    properties:
+                                      key:
+                                        description: The label key that the selector
+                                          applies to.
+                                        type: string
+                                      operator:
+                                        description: 'Represents a key''s relationship
+                                          to a set of values.
+
+                                          Valid operators are In, NotIn, Exists, DoesNotExist.
+                                          Gt, and Lt.'
+                                        type: string
+                                      values:
+                                        description: 'An array of string values. If
+                                          the operator is In or NotIn,
+
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist,
+
+                                          the values array must be empty. If the operator
+                                          is Gt or Lt, the values
+
+                                          array must have a single element, which
+                                          will be interpreted as an integer.
+
+                                          This array is replaced during a strategic
+                                          merge patch.'
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                        - nodeSelectorTerms
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector is a selector which must be true for
+                      the pod to fit on a node.
+                    type: object
+                  priorityClassName:
+                    description: PriorityClassName for the worker pods.
+                    type: string
+                  resources:
+                    description: Resources are the compute resources allocated for
+                      each worker pod.
+                    properties:
+                      claims:
+                        description: 'Claims lists the names of resources, defined
+                          in spec.resourceClaims,
+
+                          that are used by this container.
+
+
+                          This field depends on the
+
+                          DynamicResourceAllocation feature gate.
+
+
+                          This field is immutable. It can only be set for containers.'
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: 'Name must match the name of one entry
+                                in pod.spec.resourceClaims of
+
+                                the Pod where this field is used. It makes that resource
+                                available
+
+                                inside a container.'
+                              type: string
+                            request:
+                              description: 'Request is the name chosen for a request
+                                in the referenced claim.
+
+                                If empty, everything from the claim is made available,
+                                otherwise
+
+                                only the result of this request.'
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Limits describes the maximum amount of compute
+                          resources allowed.
+
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: 'Requests describes the minimum amount of compute
+                          resources required.
+
+                          If Requests is omitted for a container, it defaults to Limits
+                          if that is explicitly specified,
+
+                          otherwise to an implementation-defined value. Requests cannot
+                          exceed Limits.
+
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                        type: object
+                    type: object
+                  tolerations:
+                    description: Tolerations for the worker pods.
+                    items:
+                      description: 'The pod this Toleration is attached to tolerates
+                        any taint that matches
+
+                        the triple <key,value,effect> using the matching operator
+                        <operator>.'
+                      properties:
+                        effect:
+                          description: 'Effect indicates the taint effect to match.
+                            Empty means match all taint effects.
+
+                            When specified, allowed values are NoSchedule, PreferNoSchedule
+                            and NoExecute.'
+                          type: string
+                        key:
+                          description: 'Key is the taint key that the toleration applies
+                            to. Empty means match all taint keys.
+
+                            If the key is empty, operator must be Exists; this combination
+                            means to match all values and all keys.'
+                          type: string
+                        operator:
+                          description: 'Operator represents a key''s relationship
+                            to the value.
+
+                            Valid operators are Exists, Equal, Lt, and Gt. Defaults
+                            to Equal.
+
+                            Exists is equivalent to wildcard for value, so that a
+                            pod can
+
+                            tolerate all taints of a particular category.
+
+                            Lt and Gt perform numeric comparisons (requires feature
+                            gate TaintTolerationComparisonOperators).'
+                          type: string
+                        tolerationSeconds:
+                          description: 'TolerationSeconds represents the period of
+                            time the toleration (which must be
+
+                            of effect NoExecute, otherwise this field is ignored)
+                            tolerates the taint. By default,
+
+                            it is not set, which means tolerate the taint forever
+                            (do not evict). Zero and
+
+                            negative values will be treated as 0 (evict immediately)
+                            by the system.'
+                          format: int64
+                          type: integer
+                        value:
+                          description: 'Value is the taint value the toleration matches
+                            to.
+
+                            If the operator is Exists, the value should be empty,
+                            otherwise just a regular string.'
+                          type: string
+                      type: object
+                    maxItems: 16
+                    type: array
+                    x-kubernetes-list-type: atomic
+                type: object
+              workerImage:
+                description: WorkerImage is the ateom container image to deploy as
+                  workers.
+                minLength: 1
+                type: string
+            required:
+            - replicas
+            - workerImage
+            type: object
+          status:
+            description: status is the observed state of WorkerPool
+            properties:
+              readyReplicas:
+                description: ReadyReplicas is the number of ready worker pods.
+                format: int32
+                minimum: 0
+                type: integer
+              replicas:
+                description: Replicas is the total number of worker pods.
+                format: int32
+                minimum: 0
+                type: integer
+              selector:
+                description: Selector is the label selector for the worker pods.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      scale:
+        labelSelectorPath: .status.selector
+        specReplicasPath: .spec.replicas
+        statusReplicasPath: .status.replicas
+      status: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {}
+  name: ate-api-server
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ate.dev
+  resources:
+  - workerpools
+  - sandboxconfigs
+  - csidriverconfigs
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ate.dev
+  resources:
+  - workerpools
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {}
+  name: ate-controller
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ate.dev
+  resources:
+  - workerpools
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ate.dev
+  resources:
+  - workerpools/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ate.dev
+  resources:
+  - workerpools/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - clustertrustbundles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - egress-mitm.ate.dev/*
+  resources:
+  - signers
+  verbs:
+  - attest
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {}
+  name: ate-prometheus
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {}
+  name: atelet
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ate.dev
+  resources:
+  - csidriverconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ate.dev
+  resources:
+  - sandboxconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - clustertrustbundles
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations: {}
+  name: podcert-ate-dev-signer
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - services
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - podcertificaterequests
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - clustertrustbundles
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - delete
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - podcertificaterequests/status
+  verbs:
+  - update
+- apiGroups:
+  - certificates.k8s.io
+  resourceNames:
+  - servicedns.podcert.ate.dev/*
+  - podidentity.podcert.ate.dev/*
+  resources:
+  - signers
+  verbs:
+  - sign
+  - attest
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations: {}
+  name: ate-api-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ate-api-server
+subjects:
+- kind: ServiceAccount
+  name: ate-api-server
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations: {}
+  name: ate-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ate-controller
+subjects:
+- kind: ServiceAccount
+  name: ate-controller
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations: {}
+  name: atelet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: atelet
+subjects:
+- kind: ServiceAccount
+  name: atelet
+  namespace: ate-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations: {}
+  name: podcert-ate-dev-signer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: podcert-ate-dev-signer
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: podcertificate-controller-system

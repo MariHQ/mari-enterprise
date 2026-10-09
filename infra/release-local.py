@@ -8,14 +8,16 @@ import subprocess
 import yaml
 
 ROOT=Path(__file__).resolve().parents[1]
-STACK=Path.home()/'stack'
-K=['kubectl','--context','kind-orchid-stack']
+STACK=ROOT/'stack'
+K=['kubectl','--context','docker-desktop']
 def run(args,**kwargs):return subprocess.run([str(arg) for arg in args],check=True,**kwargs)
 def output(args):return subprocess.check_output([str(arg) for arg in args],text=True)
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply',action='store_true')
+    parser.add_argument('--state-uri',default='file:///var/lib/mari-flink',help='Shared checkpoint/savepoint/HA directory; file PVC or s3 URI')
+    parser.add_argument('--reset-state',action='store_true',help='Start a fresh Kafka replay when switching storage backends')
     args=parser.parse_args()
     revision=output(['git','-C',ROOT,'rev-parse','--short=12','HEAD']).strip()
     apps=json.loads((ROOT/'container/apps.json').read_text())['apps']
@@ -47,6 +49,12 @@ def main():
     for stage in stages:
         path=stage['spec']['path'].removeprefix('./')
         documents=list(yaml.safe_load_all(output(K+['kustomize',ROOT/path])))
+        for document in documents:
+            if document and document.get('kind')=='FlinkDeployment':
+                spec=document['spec'];config=spec['flinkConfiguration'];base=args.state_uri.rstrip('/')
+                for key,leaf in [('state.checkpoints.dir','checkpoints'),('state.savepoints.dir','savepoints'),('high-availability.storageDir','ha')]:config[key]=base+'/'+leaf
+                spec['job']['upgradeMode']='stateless' if args.reset_state else 'savepoint'
+                if args.reset_state:spec['restartNonce']=int(__import__('time').time())
         destination=release/path;destination.mkdir(parents=True,exist_ok=True)
         (destination/'resources.yaml').write_text(yaml.safe_dump_all([replace_images(d) for d in documents],sort_keys=False))
         (destination/'kustomization.yaml').write_text('resources:\n- resources.yaml\n')
@@ -57,9 +65,9 @@ def main():
     (root/'kustomization.yaml').write_text('resources:\n- resources.yaml\n')
     digest=hashlib.sha256(b''.join(p.read_bytes() for p in sorted(release.rglob('*.yaml')))).hexdigest()
     run([STACK/'bin/flux','push','artifact','oci://localhost:5001/mari/manifests:'+revision,'--path='+str(release),'--source=local://mari','--revision='+revision+'@sha256:'+digest,'--insecure-registry'])
-    ip=output(['docker','inspect','kind-registry','--format','{{(index .NetworkSettings.Networks "kind").IPAddress}}']).strip()
-    bootstrap=[{'apiVersion':'source.toolkit.fluxcd.io/v1','kind':'OCIRepository','metadata':{'name':'mari','namespace':'flux-system'},'spec':{'interval':'1m','url':'oci://'+ip+':5000/mari/manifests','ref':{'tag':revision},'insecure':True}},
-               {'apiVersion':'kustomize.toolkit.fluxcd.io/v1','kind':'Kustomization','metadata':{'name':'mari','namespace':'flux-system'},'spec':{'interval':'2m','path':'./root','sourceRef':{'kind':'OCIRepository','name':'mari'},'prune':False,'wait':False}}]
+    ip='host.docker.internal'
+    bootstrap=[{'apiVersion':'source.toolkit.fluxcd.io/v1','kind':'OCIRepository','metadata':{'name':'mari','namespace':'flux-system'},'spec':{'interval':'1m','url':'oci://'+ip+':5001/mari/manifests','ref':{'tag':revision},'insecure':True}},
+               {'apiVersion':'kustomize.toolkit.fluxcd.io/v1','kind':'Kustomization','metadata':{'name':'mari','namespace':'flux-system'},'spec':{'suspend':False,'interval':'2m','path':'./root','sourceRef':{'kind':'OCIRepository','name':'mari'},'prune':False,'wait':False}}]
     path=ROOT/'.artifacts/mari-bootstrap.yaml';path.write_text(yaml.safe_dump_all(bootstrap,sort_keys=False))
     if args.apply:run(K+['apply','-f',path])
     print('Published local release '+revision+('; Flux activated' if args.apply else '; review '+str(path)+' before applying'))

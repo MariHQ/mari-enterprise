@@ -1,4 +1,4 @@
-# General exclusions; Temporal images build from the parent workspace.
+# All application and worker images build from the repository root.
 
 # Not needed in application images
 .git/
@@ -22,3 +22,12 @@ vendor/mari-design/.git/
 vendor/mari-design/.preview/
 vendor/mari-design/node_modules/
 vendor/mari-design/output/
+
+stack/
+**/.env
+**/.env.*
+**/.local/
+**/.terraform/
+**/*.tfstate*
+**/*.tfplan
+**/.git

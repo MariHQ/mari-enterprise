@@ -1,0 +1,83 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: schema-registry-schemas
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: _schemas
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: compact
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schema-registry
+  namespace: stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: schema-registry
+  template:
+    metadata:
+      labels:
+        app: schema-registry
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      containers:
+      - name: schema-registry
+        image: confluentinc/cp-schema-registry:7.8.0@sha256:ce9b495bb80549258beccc6194fcf08115628ac8a43a70c0efb3af020c75f05a
+        ports:
+        - containerPort: 8081
+          name: http
+        env:
+        - name: SCHEMA_REGISTRY_HOST_NAME
+          value: schema-registry
+        - name: SCHEMA_REGISTRY_LISTENERS
+          value: http://0.0.0.0:8081
+        - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
+          value: PLAINTEXT://kafka-kafka-bootstrap.stack.svc:9092
+        - name: SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR
+          value: '1'
+        - name: SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL
+          value: BACKWARD_TRANSITIVE
+        - name: SCHEMA_REGISTRY_HEAP_OPTS
+          value: -Xms64m -Xmx256m
+        - name: SCHEMA_REGISTRY_OPTS
+          value: -XX:ActiveProcessorCount=1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        startupProbe:
+          httpGet:
+            path: /subjects
+            port: http
+          periodSeconds: 5
+          failureThreshold: 36
+        readinessProbe:
+          httpGet:
+            path: /subjects
+            port: http
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: schema-registry
+  namespace: stack
+spec:
+  selector:
+    app: schema-registry
+  ports:
+  - name: http
+    port: 8081
+    targetPort: http

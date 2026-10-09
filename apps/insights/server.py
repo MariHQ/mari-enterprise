@@ -1,4 +1,10 @@
 from pathlib import Path
-from apps.sdk.screen import create_screen
-from .projections import router as projections_router
-app=create_screen('insights',[projections_router],Path(__file__).parent/"web/dist")
+from fastapi import APIRouter
+from apps.base.runtime import Manifest, create_app
+from .projections import router as router_0
+
+from apps.base.catalog.statistics import router as statistics_router
+router=APIRouter()
+router.include_router(statistics_router)
+router.include_router(router_0)
+app=create_app(Manifest(name='insights'),router,Path(__file__).parent/'web/dist',api_prefix='')

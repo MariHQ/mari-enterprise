@@ -1,0 +1,282 @@
+/* =====================================================================
+   Mari Design System — Colors & Type   (Brutalist Blueprint)
+   Brand: Mari (mari.guru) — "Claim-checking for AI coding agents."
+   Visual story: engineering blueprint — white paper, ink lines, biscay
+   water, espelette rust. Schematic, sharp-cornered, hard block shadows.
+   Source of truth: web/src/redesign/redesign.css + web/src/shared/index.css
+                    + web/tailwind.config.ts
+   ===================================================================== */
+
+/* --- Webfonts ------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ------------------------------------------------------------------
+     COLOR TOKENS — stored as space-separated RGB channels so they can
+     be wrapped with alpha:  rgb(var(--c-ink) / 0.6)
+     (mirrors tailwind.config.ts: rgb(var(--c-ink) / <alpha-value>))
+     ------------------------------------------------------------------ */
+  --c-paper:      255 255 255;   /* #FFFFFF  page background        */
+  --c-ink:         16  38  59;   /* #10263B  text, borders, mark    */
+  --c-ink-elev:    16  38  59;   /* elevated ink (same in light)    */
+  --c-flysch:     240 242 245;   /* #F0F2F5  light panel fill       */
+  --c-biscay:      28  63  96;   /* #1C3F60  headings, mark center  */
+  --c-biscay-2:    30 111 168;   /* #1E6FA8  links / bright accent  */
+  --c-espelette:  178  58  30;   /* #B23A1E  rust — alert / accent  */
+  --c-moss:        44 110  73;   /* #2C6E49  status ok              */
+  --c-clay:       160  94  28;   /* #A05E1C  status warn            */
+
+  /* Convenience solids */
+  --paper:      rgb(var(--c-paper));
+  --ink:        rgb(var(--c-ink));
+  --flysch:     rgb(var(--c-flysch));
+  --biscay:     rgb(var(--c-biscay));
+  --biscay-2:   rgb(var(--c-biscay-2));
+  --espelette:  rgb(var(--c-espelette));
+  --moss:       rgb(var(--c-moss));
+  --clay:       rgb(var(--c-clay));
+  --hairline:   rgb(var(--c-ink) / 0.16);   /* the workhorse divider */
+  --muted:      rgb(var(--c-ink) / 0.62);   /* secondary text        */
+
+  /* ------------------------------------------------------------------
+     TYPE — families
+     ------------------------------------------------------------------ */
+  --font-display: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  --font-sans:    var(--font-display);
+  --font-mono:   'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ------------------------------------------------------------------
+     TYPE — semantic role tokens (mirror redesign.css usage)
+     Headings are extrabold + tight; body is regular Inter.
+     ------------------------------------------------------------------ */
+  --h1-size: clamp(2.25rem, 4vw + 1rem, 4rem);
+  --h1-weight: 800;
+  --h1-tracking: -0.03em;
+  --h1-leading: 1.02;
+
+  --h2-size: clamp(1.75rem, 2.2vw + 1rem, 2.75rem);
+  --h2-weight: 800;
+  --h2-tracking: -0.02em;
+  --h2-leading: 1.08;
+
+  --h3-size: 1.125rem;
+  --h3-weight: 700;
+  --h3-leading: 1.3;
+
+  --body-size: 1rem;
+  --body-leading: 1.6;
+
+  --lead-size: 1.125rem;
+  --lead-leading: 1.6;
+
+  --small-size: 0.875rem;
+  --xsmall-size: 0.75rem;
+
+  /* Eyebrow / kicker — mono uppercase with a square bullet.
+     "▪ DOCS WITH RECEIPTS" — the brand's signature label. */
+  --kicker-size: 0.75rem;
+  --kicker-tracking: 0.24em;
+  --kicker-color: var(--espelette);
+
+  --code-size: 0.9em;
+
+  /* ------------------------------------------------------------------
+     RADIUS / SHADOW — SHARP corners, HARD block shadow. No soft glow.
+     ------------------------------------------------------------------ */
+  --rd-radius: 0px;               /* everything is square            */
+  --rd-radius-pill: 9999px;       /* the rare true pill              */
+  --rd-shadow: 4px 4px 0 rgb(var(--c-ink));          /* offset block */
+  --rd-shadow-sm: 2px 2px 0 rgb(var(--c-ink));
+  --border-w: 1px;                /* hairline ink border on containers */
+
+  /* ------------------------------------------------------------------
+     SPACING (4-px base) / MOTION
+     ------------------------------------------------------------------ */
+  --space-1: 0.25rem;  --space-2: 0.5rem;  --space-3: 0.75rem;
+  --space-4: 1rem;     --space-6: 1.5rem;  --space-8: 2rem;
+  --space-12: 3rem;    --space-16: 4rem;   --space-24: 6rem;
+
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+
+  /* Blueprint dot-matrix wash */
+  --dot-color: rgb(var(--c-ink) / 0.07);
+  --dot-size: 24px;
+}
+
+/* ---------- Dark mode (blueprint inverts to a night-plan) ---------- */
+:root.dark, :root[data-theme="dark"], .dark {
+  --c-paper:      14  32  50;   /* #0E2032 */
+  --c-ink:       234 240 245;   /* #EAF0F5 */
+  --c-ink-elev:   23  50  74;   /* #17324A */
+  --c-flysch:     18  41  61;   /* #12293D */
+  --c-biscay:    111 177 230;   /* #6FB1E6 */
+  --c-biscay-2:   30 111 168;   /* #1E6FA8 */
+  --c-espelette: 232 128  94;   /* #E8805E */
+  --rd-shadow:    4px 4px 0 rgba(122, 162, 197, 0.5);
+  --rd-shadow-sm: 2px 2px 0 rgba(122, 162, 197, 0.5);
+  --dot-color:  rgb(var(--c-ink) / 0.10);
+}
+
+/* =====================================================================
+   LEGACY COMPAT — the older cream theme exposed HSL-channel tokens
+   (--background, --foreground, --primary, --border, --radius, …) that
+   the preview cards and ui_kits still consume via hsl(var(--x)).
+   These aliases remap those names onto the Blueprint palette so every
+   existing consumer renders on-brand without being rewritten.
+   Prefer the rgb(var(--c-*)) / var(--ink) tokens above for new work.
+   ===================================================================== */
+:root {
+  --background:            0 0% 100%;      /* paper #FFFFFF        */
+  --foreground:          209 57% 15%;      /* ink #10263B          */
+  --surface:             213 20% 95%;      /* flysch #F0F2F5       */
+  --surface-2:           212 18% 92%;
+  --surface-3:           211 16% 88%;
+  --border:              210 16% 86%;      /* light ink hairline   */
+  --input:               210 16% 86%;
+  --muted:               213 20% 95%;
+  --muted-foreground:    209 25% 38%;
+  --card:                  0 0% 100%;
+  --card-foreground:     209 57% 15%;
+  --popover:               0 0% 100%;
+  --popover-foreground:  209 57% 15%;
+  --accent:              213 20% 95%;
+  --accent-foreground:   209 57% 15%;
+  --secondary:           213 20% 95%;
+  --secondary-foreground:209 57% 15%;
+  --primary:             209 55% 24%;      /* biscay #1C3F60       */
+  --primary-foreground:    0 0% 100%;
+  --primary-glow:        205 70% 39%;      /* biscay-2 #1E6FA8     */
+  --purple:              205 70% 39%;      /* alias of biscay-2    */
+  --purple2:             205 70% 39%;
+  --ring:                209 55% 24%;
+  --emerald:             146 43% 30%;      /* moss #2C6E49         */
+  --emerald2:            146 43% 30%;
+  --amber:                30 70% 37%;      /* clay #A05E1C         */
+  --rose:                 11 71% 41%;      /* espelette #B23A1E    */
+  --destructive:          11 71% 41%;
+  --destructive-foreground:0 0% 100%;
+  --radius:    0px; --radius-sm: 0px; --radius-md: 0px;
+  --radius-lg: 0px; --radius-xl: 0px; --radius-2xl: 0px;
+}
+.dark, :root.dark, :root[data-theme="dark"] {
+  --background:          209 56% 13%;      /* paper #0E2032        */
+  --foreground:          206 30% 94%;      /* ink #EAF0F5          */
+  --surface:             207 55% 15%;      /* flysch #12293D       */
+  --surface-2:           208 53% 18%;
+  --surface-3:           208 50% 22%;
+  --border:              208 40% 24%;
+  --input:               208 40% 24%;
+  --muted:               207 55% 15%;
+  --muted-foreground:    206 25% 72%;
+  --card:                209 56% 13%;
+  --card-foreground:     206 30% 94%;
+  --popover:             209 56% 13%;
+  --primary:             205 68% 67%;      /* biscay #6FB1E6       */
+  --primary-glow:        205 70% 39%;
+  --rose:                 15 74% 64%;      /* espelette #E8805E    */
+  --destructive:          15 74% 64%;
+}
+
+/* =====================================================================
+   SEMANTIC ELEMENT STYLES — apply the system to plain HTML so previews
+   and snippets render on-brand without classes.
+   ===================================================================== */
+
+html { color-scheme: light dark; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
+}
+
+h1, .h1 {
+  font-family: var(--font-display);
+  font-size: var(--h1-size); font-weight: var(--h1-weight);
+  letter-spacing: var(--h1-tracking); line-height: var(--h1-leading);
+  color: var(--ink); margin: 0;
+}
+h2, .h2 {
+  font-family: var(--font-display);
+  font-size: var(--h2-size); font-weight: var(--h2-weight);
+  letter-spacing: var(--h2-tracking); line-height: var(--h2-leading);
+  color: var(--ink); margin: 0;
+}
+h3, .h3 { font-size: var(--h3-size); font-weight: var(--h3-weight); line-height: var(--h3-leading); margin: 0; }
+
+p, .p { font-size: var(--body-size); line-height: var(--body-leading); color: var(--ink); margin: 0; }
+.lead { font-size: var(--lead-size); line-height: var(--lead-leading); color: var(--muted); }
+
+/* Kicker — mono uppercase, square bullet prefix (espelette or biscay) */
+.kicker, .eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--kicker-size); font-weight: 500;
+  text-transform: uppercase; letter-spacing: var(--kicker-tracking);
+  color: var(--kicker-color);
+  display: inline-flex; align-items: center; gap: 0.7em;
+}
+.kicker::before, .eyebrow::before {
+  content: ""; width: 0.62em; height: 0.62em;
+  background: currentColor; display: inline-block;
+}
+
+small, .small { font-size: var(--small-size); }
+.xsmall { font-size: var(--xsmall-size); }
+
+code, .code, .font-mono { font-family: var(--font-mono); }
+code:not(pre code) {
+  font-size: var(--code-size);
+  background: var(--flysch);
+  border: 1px solid var(--hairline);
+  padding: 0.1em 0.35em;
+}
+
+a {
+  color: var(--biscay-2);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+a:hover { color: var(--ink); }
+
+hr { border: 0; border-top: 1px solid var(--hairline); margin: 2em 0; }
+
+/* =====================================================================
+   UTILITY CLASSES — the blueprint toolkit
+   ===================================================================== */
+
+/* Blueprint dot-matrix background (use as a wash, not a solid fill) */
+.dot-grid {
+  background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.4px);
+  background-size: var(--dot-size) var(--dot-size);
+}
+
+/* Container — hairline ink border, sharp corners, optional hard shadow */
+.frame { border: var(--border-w) solid var(--ink); border-radius: var(--rd-radius); background: var(--paper); }
+.rd-shadow { box-shadow: var(--rd-shadow); }
+.rd-shadow-sm { box-shadow: var(--rd-shadow-sm); }
+
+/* Espelette accent bar — the top-right corner tick used on social/cards */
+.rust-bar { width: 6px; height: 3.5em; background: var(--espelette); }
+
+/* Buttons — solid ink primary with a hard block shadow that collapses on
+   hover (press-into-the-page). Secondary is a hairline ghost. */
+.btn {
+  font-family: var(--font-display); font-weight: 600; font-size: 0.95rem;
+  padding: 0.6em 1.1em; border-radius: var(--rd-radius);
+  border: 1px solid var(--ink); cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+.btn-primary { background: var(--ink); color: var(--paper); box-shadow: var(--rd-shadow-sm); }
+.btn-primary:hover { transform: translate(2px, 2px); box-shadow: none; }
+.btn-ghost { background: transparent; color: var(--ink); }
+.btn-ghost:hover { background: var(--flysch); }
+
+/* Status ink (console) */
+.is-ok    { color: var(--moss); }
+.is-warn  { color: var(--clay); }
+.is-alert { color: var(--espelette); }

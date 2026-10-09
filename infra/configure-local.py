@@ -11,7 +11,7 @@ import subprocess
 import yaml
 
 ROOT=Path(__file__).resolve().parents[1]
-K=['kubectl','--context','kind-orchid-stack','-n','stack']
+K=['kubectl','--context','docker-desktop','-n','stack']
 def existing(name):
     result=subprocess.run(K+['get','secret',name,'--ignore-not-found','-o','json'],check=True,text=True,capture_output=True)
     if not result.stdout.strip():return {}
@@ -22,12 +22,12 @@ def apply(name,values):
 
 def maintenance_allowlist():
     declaration=yaml.safe_load((ROOT/'flink/ingestion.yaml').read_text())
-    targets=declaration['targets'];topics=declaration['topics']
-    if set(targets)!={'current','history'} or {t['namespace'] for t in targets.values()}!={'mari_streams','mari_history'}:
-        raise ValueError('Compaction is restricted to Mari current/history namespaces')
-    if not topics or len(topics)!=len(set(topics)) or any(not topic.startswith('mari.records.') for topic in topics):
+    topics=declaration['topics']
+    if declaration.get('version')!=2 or declaration.get('namespace')!='mari':
+        raise ValueError('Compaction is restricted to the typed Mari namespace')
+    if not topics or any(not topic.startswith('mari.records.') for topic in topics):
         raise ValueError('Compaction requires the explicit Mari topic inventory')
-    return ','.join(targets[mode]['namespace']+'.'+topic for mode in ('current','history') for topic in topics)
+    return ','.join('mari.'+topic for topic in topics)
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -35,15 +35,23 @@ def main():
     parser.add_argument('--enable-mining',action='store_true')
     parser.add_argument('--miner-image',help='Registry image pinned by sha256 digest')
     parser.add_argument('--enable-ax-observation',action='store_true')
+    parser.add_argument('--storage',choices=['postgres','iceberg'],default='postgres')
     args=parser.parse_args()
     allowlist=maintenance_allowlist()
-    polaris=existing('polaris')
-    if not polaris.get('credential'):
+    polaris=existing('polaris') if args.storage=='iceberg' else {}
+    if args.storage=='iceberg' and not polaris.get('credential'):
         raise ValueError('Existing polaris Secret must contain credential')
     runtime=existing('mari-runtime')
     for key in ('MARI_SESSION_SECRET','MARI_APP_GRANT_SECRET'):runtime.setdefault(key,secrets.token_urlsafe(48))
     runtime['MARI_PUBLIC_ORIGIN']=args.origin
+    runtime['SCHEMA_REGISTRY_URL']='http://schema-registry.stack.svc:8081'
+    from urllib.parse import quote
+    password=existing('postgres')['password']
+    storage={'MARI_STORAGE':args.storage,'MARI_POSTGRES_DSN':'postgresql://stack:'+quote(password,safe='')+'@postgres.stack.svc:5432/app',
+        'MARI_POSTGRES_JDBC':'jdbc:postgresql://postgres.stack.svc:5432/app','MARI_POSTGRES_USER':'stack','MARI_POSTGRES_PASSWORD':password}
+    runtime.update(storage)
     worker=existing('mari-worker')
+    worker.update(storage)
     allow={'GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_TEAM_ID','SLACK_CHANNELS','MARI_KNOWLEDGE_PROJECT_ID','AX_MINER_IMAGE','CLAUDE_CODE_OAUTH_TOKEN'}
     path=ROOT/'temporal/.env'
     if path.exists():
@@ -55,7 +63,10 @@ def main():
             parsed=shlex.split(value,comments=True)
             if not separator or len(parsed)>1:raise ValueError('Invalid environment assignment at line '+str(number))
             worker[key.strip()]=parsed[0] if parsed else ''
-    worker.update({'TEMPORAL_ADDRESS':'temporal.stack.svc:7233','TEMPORAL_NAMESPACE':'default','TEMPORAL_TASK_QUEUE':'mari','KAFKA_BOOTSTRAP_SERVERS':'kafka-kafka-bootstrap.stack.svc:9092','ORCHID_GRAPH':'decisions'})
+    worker.update({'TEMPORAL_ADDRESS':'temporal.stack.svc:7233','TEMPORAL_NAMESPACE':'default','TEMPORAL_TASK_QUEUE':'mari','KAFKA_BOOTSTRAP_SERVERS':'kafka-kafka-bootstrap.stack.svc:9092','ORCHID_GRAPH':'decisions','SCHEMA_REGISTRY_URL':'http://schema-registry.stack.svc:8081'})
+    worker.update({'AX_ENDPOINT':'host.docker.internal:18080',
+                   'AX_ENDPOINTS':'["host.docker.internal:18080"]',
+                   'SUBSTRATE_ROUTER':'http://host.docker.internal:18081'})
     # Maintenance is explicitly limited to the declaration; paid model execution remains opt-in.
     for key in ('DECISION_MINING_ENABLED','AX_OBSERVATION_ENABLED'):worker.setdefault(key,'false')
     if args.miner_image:
@@ -69,12 +80,13 @@ def main():
     if args.enable_ax_observation:
         worker['AX_OBSERVATION_ENABLED']='true'
         worker['AX_TRAJECTORY_ROOTS']='["/workspace/mari-trajectories"]'
-    worker.update({'ICEBERG_COMPACTION_ENABLED':'true','ICEBERG_COMPACTION_MINUTES':'60',
+    worker.update({'ICEBERG_COMPACTION_ENABLED':str(args.storage=='iceberg').lower(),'ICEBERG_COMPACTION_MINUTES':'1440',
                    'ICEBERG_MAINTENANCE_TABLES':allowlist})
     apply('mari-runtime',runtime)
-    apply('mari-iceberg-catalog',{'ICEBERG_REST_URI':'http://polaris.stack.svc:8181/api/catalog',
-          'ICEBERG_WAREHOUSE':'lake','ICEBERG_OAUTH_SCOPE':'PRINCIPAL_ROLE:ALL',
-          'ICEBERG_CREDENTIAL':polaris['credential']})
+    if args.storage=='iceberg':
+        apply('mari-iceberg-catalog',{'ICEBERG_REST_URI':'http://polaris.stack.svc:8181/api/catalog',
+              'ICEBERG_WAREHOUSE':'lake','ICEBERG_OAUTH_SCOPE':'PRINCIPAL_ROLE:ALL',
+              'ICEBERG_CREDENTIAL':polaris['credential']})
     apply('mari-worker',worker)
     print('Mari runtime/worker Secrets configured; credential values were not logged.')
 

@@ -1,80 +1,50 @@
 package local.mari;
-
 import java.io.Serializable;
-import java.nio.file.Path;
-import java.nio.file.Files;
+import java.nio.file.*;
 import java.util.*;
-import org.apache.iceberg.*;
-import org.apache.iceberg.types.Types;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.*;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
-
-/** Deliberately small, strict declaration: no YAML object construction or inferred schemas. */
+/** Only routing and keys: column schemas belong to each topic's writer schema. */
 public final class IngestionConfig implements Serializable {
-  public record Column(int id,String name,String type,boolean required) implements Serializable {}
-  public record Target(String namespace,List<String> primaryKey,List<String> partitionKeys) implements Serializable {}
+  public record Keys(List<String> primaryKey,List<String> partitionKeys,Map<Integer,Long> startOffsets) implements Serializable {}
+  public final String namespace;
   public final List<String> topics;
-  public final List<Column> columns;
-  public final Map<String,Target> targets;
-  private IngestionConfig(List<String> topics,List<Column> columns,Map<String,Target> targets) {
-    this.topics=List.copyOf(topics);this.columns=List.copyOf(columns);this.targets=Map.copyOf(targets);
+  public final Map<String,Keys> keys;
+  private IngestionConfig(String namespace,Map<String,Keys> keys){this.namespace=namespace;this.keys=Map.copyOf(keys);this.topics=List.copyOf(keys.keySet());}
+  public Map<org.apache.flink.kafka.shaded.org.apache.kafka.common.TopicPartition,Long> startOffsets(){
+    var offsets=new LinkedHashMap<org.apache.flink.kafka.shaded.org.apache.kafka.common.TopicPartition,Long>();
+    for(String topic:topics){
+      var starts=keys.get(topic).startOffsets();if(starts.isEmpty())throw new IllegalArgumentException("Explicit reset offsets required for "+topic);
+      starts.forEach((partition,offset)->offsets.put(new org.apache.flink.kafka.shaded.org.apache.kafka.common.TopicPartition(topic,partition),offset));
+    }return offsets;
   }
-  public static IngestionConfig load(Path path) throws Exception {
-    if(Files.size(path)>262144)throw new IllegalArgumentException("Declaration exceeds 256 KiB");
-    return parse(Files.readString(path));
+  public static IngestionConfig load(Path path)throws Exception{if(Files.size(path)>262144)throw new IllegalArgumentException("Declaration too large");return parse(Files.readString(path));}
+  static Map<?,?> map(Object value,Set<String> allowed){if(!(value instanceof Map<?,?> m)||!allowed.containsAll(m.keySet()))throw new IllegalArgumentException("Invalid declaration keys");return m;}
+  static List<String> names(Object value,boolean empty){
+    if(!(value instanceof List<?> list)||(!empty&&list.isEmpty())||list.stream().anyMatch(x->!(x instanceof String s)||!s.matches("[A-Za-z_][A-Za-z0-9_]*")))throw new IllegalArgumentException("Invalid key names");
+    var result=list.stream().map(String.class::cast).toList();if(new HashSet<>(result).size()!=result.size())throw new IllegalArgumentException("Duplicate keys");return result;
   }
-  static Map<?,?> map(Object value,Set<String> allowed) {
-    if(!(value instanceof Map<?,?> m)||!allowed.containsAll(m.keySet()))throw new IllegalArgumentException("Invalid declaration keys: "+value);
-    return m;
-  }
-  static List<String> strings(Object value) {
-    if(!(value instanceof List<?> list)||list.isEmpty()||list.stream().anyMatch(x->!(x instanceof String)))throw new IllegalArgumentException("Expected nonempty string list");
-    List<String> result=list.stream().map(String.class::cast).toList();
-    if(new HashSet<>(result).size()!=result.size())throw new IllegalArgumentException("Duplicate names");return result;
-  }
-  public static IngestionConfig parse(String text) {
-    LoaderOptions options=new LoaderOptions();options.setAllowDuplicateKeys(false);options.setMaxAliasesForCollections(0);options.setCodePointLimit(262144);options.setNestingDepthLimit(8);
-    Map<?,?> root=map(new Yaml(new SafeConstructor(options)).load(text),Set.of("version","topics","schema","targets"));
-    if(!Integer.valueOf(1).equals(root.get("version")))throw new IllegalArgumentException("Unsupported declaration version");
-    List<String> topics=strings(root.get("topics"));
-    if(topics.size()>512||topics.stream().anyMatch(t->t.length()>249||!t.matches("mari\\.records\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*")))throw new IllegalArgumentException("Invalid or excessive topic inventory");
-    if(!(root.get("schema") instanceof List<?> fields)||fields.size()!=14)throw new IllegalArgumentException("Expected normalized v1 schema with 14 columns");
-    List<String> names=List.of("project_id","record_id","event_id","operation","kind","source","title","text","url","properties","actor","observed_at","kafka_partition","kafka_offset");
-    List<Column> columns=new ArrayList<>();Set<Integer> ids=new HashSet<>();
-    for(int i=0;i<fields.size();i++) {
-      Map<?,?> f=map(fields.get(i),Set.of("id","name","type","required"));
-      String name=names.get(i),type=i==11||i==13?"long":i==12?"int":"string";
-      if(!(f.get("id") instanceof Integer id)||id<=0||!ids.add(id)||!name.equals(f.get("name"))||!type.equals(f.get("type"))||!(f.get("required") instanceof Boolean))throw new IllegalArgumentException("Invalid normalized column: "+f);
-      boolean required=(Boolean)f.get("required");
-      if((i<6||i>=11)&&!required)throw new IllegalArgumentException("Identity/offset columns must be required: "+name);
-      columns.add(new Column(id,name,type,required));
+  public static IngestionConfig parse(String text){
+    var o=new LoaderOptions();o.setAllowDuplicateKeys(false);o.setMaxAliasesForCollections(0);o.setCodePointLimit(262144);o.setNestingDepthLimit(8);
+    var root=map(new Yaml(new SafeConstructor(o)).load(text),Set.of("version","namespace","topics"));
+    if(!Integer.valueOf(2).equals(root.get("version")))throw new IllegalArgumentException("Expected declaration version 2");
+    if(!(root.get("namespace") instanceof String ns)||!ns.matches("[a-z][a-z0-9_]{0,62}"))throw new IllegalArgumentException("Invalid namespace");
+    if(!(root.get("topics") instanceof Map<?,?> topics)||topics.isEmpty()||topics.size()>512)throw new IllegalArgumentException("Expected topic mappings");
+    Map<String,Keys> keys=new LinkedHashMap<>();
+    for(var entry:topics.entrySet()){
+      if(!(entry.getKey() instanceof String topic)||topic.length()>249||!topic.matches("[a-zA-Z0-9_][a-zA-Z0-9_.-]*"))throw new IllegalArgumentException("Invalid topic");
+      var k=map(entry.getValue(),Set.of("primary_key","partition_keys","start_offsets"));var pk=names(k.get("primary_key"),false);var partition=names(k.get("partition_keys"),true);
+      if(!pk.containsAll(partition))throw new IllegalArgumentException("Upsert partition keys must be primary keys");
+      Map<Integer,Long> offsets=new LinkedHashMap<>();
+      if(k.containsKey("start_offsets")) {
+        if(!(k.get("start_offsets") instanceof Map<?,?> starts))throw new IllegalArgumentException("Invalid starting offsets");
+        for(var e:starts.entrySet()) {
+          if(!(e.getKey() instanceof Integer partitionId)||partitionId<0||!(e.getValue() instanceof Number offset)||offset.longValue()<0)throw new IllegalArgumentException("Invalid partition offset");
+          offsets.put(partitionId,offset.longValue());
+        }
+      }
+      keys.put(topic,new Keys(pk,partition,Map.copyOf(offsets)));
     }
-    Map<?,?> rawTargets=map(root.get("targets"),Set.of("current","history"));
-    if(rawTargets.size()!=2)throw new IllegalArgumentException("Both current and history targets required");
-    Map<String,Target> targets=new LinkedHashMap<>();
-    for(String mode:List.of("current","history")) {
-      Map<?,?> t=map(rawTargets.get(mode),Set.of("namespace","primary_key","partition_keys"));
-      if(!(t.get("namespace") instanceof String namespace)||!namespace.matches("[a-z][a-z0-9_]{0,62}"))throw new IllegalArgumentException("Invalid namespace");
-      List<String> pk=strings(t.get("primary_key")),partition=strings(t.get("partition_keys"));
-      Set<String> expected=mode.equals("current")?Set.of("project_id","record_id"):Set.of("project_id","record_id","event_id");
-      if(!new HashSet<>(pk).equals(expected))throw new IllegalArgumentException("Normalized v1 "+mode+" primary key must be "+expected);
-      if(!pk.containsAll(partition)||!partition.contains("project_id"))throw new IllegalArgumentException("Identity partition keys must include project_id and belong to primary key");
-      targets.put(mode,new Target(namespace,List.copyOf(pk),List.copyOf(partition)));
-    }
-    if(targets.get("current").namespace().equals(targets.get("history").namespace()))throw new IllegalArgumentException("Current and history require different namespaces");
-    return new IngestionConfig(topics,columns,targets);
-  }
-  public Schema schema(String mode) {
-    Set<Integer> ids=new HashSet<>();List<Types.NestedField> fields=new ArrayList<>();
-    for(Column c:columns) {
-      var type=switch(c.type()){case "long"->Types.LongType.get();case "int"->Types.IntegerType.get();default->Types.StringType.get();};
-      fields.add(c.required()?Types.NestedField.required(c.id(),c.name(),type):Types.NestedField.optional(c.id(),c.name(),type));
-      if(targets.get(mode).primaryKey().contains(c.name()))ids.add(c.id());
-    }
-    return new Schema(fields,ids);
-  }
-  public PartitionSpec spec(String mode) {
-    var builder=PartitionSpec.builderFor(schema(mode));for(String key:targets.get(mode).partitionKeys())builder.identity(key);return builder.build();
+    return new IngestionConfig(ns,keys);
   }
 }

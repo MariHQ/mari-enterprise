@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Mari — Brand & UX Style Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --c-paper: 255 255 255;
+    --c-ink: 16 38 59;
+    --c-flysch: 240 242 245;
+    --c-biscay: 28 63 96;
+    --c-biscay-2: 30 111 168;
+    --c-espelette: 178 58 30;
+    --c-moss: 44 110 73;
+    --c-clay: 160 94 28;
+    --paper: rgb(var(--c-paper));
+    --ink: rgb(var(--c-ink));
+    --flysch: rgb(var(--c-flysch));
+    --biscay: rgb(var(--c-biscay));
+    --biscay-2: rgb(var(--c-biscay-2));
+    --espelette: rgb(var(--c-espelette));
+    --moss: rgb(var(--c-moss));
+    --clay: rgb(var(--c-clay));
+    --hairline: rgb(var(--c-ink) / 0.18);
+    --muted: rgb(var(--c-ink) / 0.62);
+    --font-display: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--font-display); }
+  body { font-size: 13px; line-height: 1.55; }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 16mm 14mm;
+    position: relative;
+    page-break-after: always;
+    background-image: radial-gradient(rgba(var(--c-ink), 0.055) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    background-position: -1px -1px;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--espelette);
+    display: inline-flex; align-items: center; gap: 0.65em;
+    margin-bottom: 8px;
+  }
+  .kicker::before { content: ""; width: 7px; height: 7px; background: currentColor; flex: none; }
+  .kicker--blue { color: var(--biscay-2); }
+
+  h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 6px; }
+  h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px; }
+  h3 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+  p { margin: 0 0 10px; }
+  .lede { font-size: 14.5px; color: var(--muted); max-width: 480px; margin: 0 0 22px; }
+
+  .section { margin-top: 16px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--ink); padding-bottom: 5px; margin-bottom: 9px; }
+  .section-num { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+
+  .frame { border: 1px solid var(--ink); background: var(--paper); }
+
+  /* cover */
+  .cover { display: flex; flex-direction: column; justify-content: space-between; height: 265mm; }
+  .cover-mark { width: 64px; height: 64px; }
+  .cover-title { font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; margin: 18px 0 10px; }
+  .cover-sub { font-size: 15px; color: var(--muted); max-width: 420px; }
+  .cover-footline { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid var(--ink); padding-top: 10px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .rust-corner { position: absolute; top: 0; right: 0; width: 7px; height: 42px; background: var(--espelette); }
+
+  /* swatches */
+  .swatch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .swatch { border: 1px solid var(--ink); }
+  .swatch-fill { height: 40px; }
+  .swatch-body { padding: 5px 8px; border-top: 1px solid var(--ink); }
+  .swatch-name { font-weight: 700; font-size: 11px; }
+  .swatch-hex { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+  .swatch-use { font-size: 9.5px; color: var(--muted); margin-top: 1px; }
+
+  /* type specimen */
+  .type-row { display: grid; grid-template-columns: 90px 1fr; gap: 14px; align-items: baseline; border-bottom: 1px dotted var(--hairline); padding: 10px 0; }
+  .type-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* shape modes */
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .mode-card { border: 1px solid var(--ink); padding: 14px; }
+  .mode-card h3 { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: var(--biscay-2); }
+  .demo-btn-brand { display: inline-block; background: var(--ink); color: var(--paper); font-weight: 600; font-size: 12px; padding: 8px 14px; box-shadow: 4px 4px 0 var(--ink); margin-top: 8px; }
+  .demo-btn-app { display: inline-block; background: var(--paper); color: var(--ink); border: 1px solid rgba(var(--c-ink), 0.2); font-weight: 500; font-size: 12px; padding: 8px 14px; border-radius: 5px; margin-top: 8px; }
+
+  /* dot matrix demo */
+  .dot-demo { height: 70px; border: 1px solid var(--ink); background-image: radial-gradient(rgba(var(--c-ink), 0.14) 1px, transparent 1.4px); background-size: 22px 22px; background-position: -1px -1px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* badges */
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; padding: 3px 7px; border: 1px solid; white-space: nowrap; }
+  .badge-ok { color: var(--moss); border-color: rgba(44,110,73,0.35); background: rgba(44,110,73,0.06); }
+  .badge-attn { color: var(--clay); border-color: rgba(160,94,28,0.35); background: rgba(160,94,28,0.07); }
+  .badge-blocked { color: var(--espelette); border-color: rgba(178,58,30,0.3); background: rgba(178,58,30,0.06); }
+  .badge-info { color: var(--biscay-2); border-color: rgba(30,111,168,0.35); background: rgba(30,111,168,0.06); }
+  .badge-neutral { color: rgba(var(--c-ink),0.7); border-color: rgba(var(--c-ink),0.2); background: rgba(var(--c-ink),0.04); }
+
+  /* do/dont table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; text-align: left; color: var(--muted); border-bottom: 1px solid var(--ink); padding: 6px 8px; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  td.do { color: var(--moss); }
+  td.dont { color: var(--espelette); }
+
+  .footer-tab { position: absolute; bottom: 10mm; left: 16mm; right: 16mm; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; border-top: 1px solid var(--hairline); padding-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ===== PAGE 1: COVER ===== -->
+<section class="page">
+  <div class="rust-corner"></div>
+  <div class="cover">
+    <div>
+      <svg class="cover-mark" viewBox="0 0 32 32" fill="none" stroke="rgb(16,38,59)" stroke-width="1.6">
+        <path d="M4 27 V7 L16 18 L28 7 V27" />
+        <rect x="2.2" y="5.2" width="3.6" height="3.6" fill="rgb(16,38,59)" />
+        <rect x="14.2" y="16.2" width="3.6" height="3.6" fill="rgb(28,63,96)" stroke="rgb(28,63,96)" />
+        <rect x="26.2" y="5.2" width="3.6" height="3.6" fill="rgb(16,38,59)" />
+        <rect x="2.2" y="25.2" width="3.6" height="3.6" fill="rgb(16,38,59)" />
+        <rect x="26.2" y="25.2" width="3.6" height="3.6" fill="rgb(16,38,59)" />
+      </svg>
+      <div class="kicker" style="margin-top:20px;">▪ Brutalist Blueprint</div>
+      <div class="cover-title">Brand &amp;<br />UX style<br />guide</div>
+      <p class="cover-sub">The complete visual and voice system for Mari (mari.guru) — colors, type, shape language, iconography, and component rules, sourced from the live marketing site and product console.</p>
+    </div>
+    <div class="cover-footline">
+      <span>mari.guru</span>
+      <span>Claim-checking for AI coding agents</span>
+      <span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PAGE 2: COLOR ===== -->
+<section class="page">
+  <div class="kicker">▪ 01 — Color</div>
+  <h1 style="font-size:28px;">Color tokens</h1>
+  <p class="lede">One espelette accent per canvas. Biscay for brand weight, biscay-2 for interaction. Status tones are semantic, not decorative.</p>
+
+  <div class="section">
+    <div class="section-head"><h2>Light (default)</h2><span class="section-num">rgb(var(--c-*))</span></div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background:#FFFFFF;"></div><div class="swatch-body"><div class="swatch-name">Paper</div><div class="swatch-hex">#FFFFFF</div><div class="swatch-use">Page / app background</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#10263B;"></div><div class="swatch-body"><div class="swatch-name" style="color:#fff;">Ink</div><div class="swatch-hex">#10263B</div><div class="swatch-use">Text, hairline borders, mark</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#F0F2F5;"></div><div class="swatch-body"><div class="swatch-name">Flysch</div><div class="swatch-hex">#F0F2F5</div><div class="swatch-use">Panel fill, hover state</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#1C3F60;"></div><div class="swatch-body"><div class="swatch-name">Biscay</div><div class="swatch-hex">#1C3F60</div><div class="swatch-use">Headings, primary buttons</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#1E6FA8;"></div><div class="swatch-body"><div class="swatch-name">Biscay-2</div><div class="swatch-hex">#1E6FA8</div><div class="swatch-use">Links, hover, focus ring</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#B23A1E;"></div><div class="swatch-body"><div class="swatch-name">Espelette</div><div class="swatch-hex">#B23A1E</div><div class="swatch-use">The single hot accent</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#2C6E49;"></div><div class="swatch-body"><div class="swatch-name">Moss</div><div class="swatch-hex">#2C6E49</div><div class="swatch-use">Status: ok / healthy</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#A05E1C;"></div><div class="swatch-body"><div class="swatch-name">Clay</div><div class="swatch-hex">#A05E1C</div><div class="swatch-use">Status: attention</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Dark (night-plan)</h2><span class="section-num">inverts, never black</span></div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-fill" style="background:#0E2032;"></div><div class="swatch-body"><div class="swatch-name" style="color:#fff;">Paper</div><div class="swatch-hex">#0E2032</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#EAF0F5;"></div><div class="swatch-body"><div class="swatch-name">Ink</div><div class="swatch-hex">#EAF0F5</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#6FB1E6;"></div><div class="swatch-body"><div class="swatch-name">Biscay</div><div class="swatch-hex">#6FB1E6</div></div></div>
+      <div class="swatch"><div class="swatch-fill" style="background:#E8805E;"></div><div class="swatch-body"><div class="swatch-name">Espelette</div><div class="swatch-hex">#E8805E</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Status badges</h2><span class="section-num">semantic scale</span></div>
+    <div class="badge-row">
+      <span class="badge badge-ok">● OK / APPROVED</span>
+      <span class="badge badge-attn">● ATTENTION / PENDING</span>
+      <span class="badge badge-blocked">● BLOCKED / FLAGGED</span>
+      <span class="badge badge-info">● INFO</span>
+      <span class="badge badge-neutral">● NEUTRAL / DRAFT</span>
+    </div>
+  </div>
+  <div class="footer-tab"><span>Mari brand &amp; UX style guide</span><span>02 — Color</span></div>
+</section>
+
+<!-- ===== PAGE 3: TYPE ===== -->
+<section class="page">
+  <div class="kicker">▪ 02 — Typography</div>
+  <h1 style="font-size:28px;">Type system</h1>
+  <p class="lede">Inter for display and body. JetBrains Mono for chrome — labels, badges, table headers, code. No serif, ever.</p>
+
+  <div class="section">
+    <div class="type-row"><div class="type-label">H1 · 800</div><div style="font-size:38px; font-weight:800; letter-spacing:-0.03em; line-height:1.02;">Claim-checking for AI coding agents</div></div>
+    <div class="type-row"><div class="type-label">H2 · 800</div><div style="font-size:26px; font-weight:800; letter-spacing:-0.02em;">Your agent wrote the README</div></div>
+    <div class="type-row"><div class="type-label">H3 · 700</div><div style="font-size:16px; font-weight:700;">Docs with receipts</div></div>
+    <div class="type-row"><div class="type-label">Body · 400</div><div style="font-size:14px;">Mari checks your agent's claims against the code — on-device, no API key, no drama.</div></div>
+    <div class="type-row"><div class="type-label">Kicker</div><div class="kicker" style="margin:0;">▪ Docs with receipts</div></div>
+    <div class="type-row"><div class="type-label">Mono chrome</div><div style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted);">SOURCE · OWNER · APPROVAL</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>App vs. marketing scale</h2></div>
+    <table>
+      <tr><th>Role</th><th>Marketing</th><th>App / console</th></tr>
+      <tr><td>Page heading</td><td class="do">clamp(2.25–4rem), 800</td><td class="do">22px, 700</td></tr>
+      <tr><td>Card / section title</td><td>18–20px, 700</td><td>15px, 600</td></tr>
+      <tr><td>Body</td><td>16–18px, 400</td><td>13–14px, 400–500</td></tr>
+      <tr><td>Chrome / labels</td><td colspan="2">10.5–11px, JetBrains Mono, uppercase, 0.08–0.18em tracking</td></tr>
+    </table>
+  </div>
+  <div class="footer-tab"><span>Mari brand &amp; UX style guide</span><span>03 — Type</span></div>
+</section>
+
+<!-- ===== PAGE 4: SHAPE + TEXTURE ===== -->
+<section class="page">
+  <div class="kicker">▪ 03 — Shape &amp; texture</div>
+  <h1 style="font-size:28px;">Two deliberate modes</h1>
+  <p class="lede">The brand identity and the app console use different shape rules on purpose. Both are correct — pick the one matching where you're building.</p>
+
+  <div class="mode-grid">
+    <div class="mode-card">
+      <h3>Brand mode</h3>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:2px;">Marketing site, landing pages, social assets</p>
+      <p style="font-size:12px;">Radius 0px. Hard offset block shadow, <span style="font-family:var(--font-mono);">4px 4px 0 ink</span>. Buttons press into the page on click.</p>
+      <span class="demo-btn-brand">Get started</span>
+    </div>
+    <div class="mode-card">
+      <h3>App / console mode</h3>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:2px;">Product UI, dashboards, dense data screens</p>
+      <p style="font-size:12px;">Radius 4–6px. No shadows anywhere. Separation comes from hairline ink/15 borders only.</p>
+      <span class="demo-btn-app">Get started</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Dot-matrix texture</h2><span class="section-num">22px grid, wash only</span></div>
+    <div class="dot-demo">radial-gradient(ink 0.07–0.14, transparent) / 22px 22px</div>
+    <p style="font-size:11.5px; color:var(--muted); margin-top:8px;">Never a solid fill. Never on small/dense UI (buttons, chips, rows). Large surfaces only: page background, hero sections, empty states.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-head"><h2>Spacing scale</h2><span class="section-num">4px base</span></div>
+    <div style="display:flex; align-items:flex-end; gap:6px; height:50px;">
+      <div style="width:4px; background:var(--biscay-2); height:4px;"></div>
+      <div style="width:8px; background:var(--biscay-2); height:8px;"></div>
+      <div style="width:12px; background:var(--biscay-2); height:12px;"></div>
+      <div style="width:16px; background:var(--biscay-2); height:16px;"></div>
+      <div style="width:24px; background:var(--biscay-2); height:24px;"></div>
+      <div style="width:32px; background:var(--biscay-2); height:32px;"></div>
+      <div style="width:48px; background:var(--biscay-2); height:48px;"></div>
+    </div>
+    <p style="font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-top:6px;">4 · 8 · 12 · 16 · 24 · 32 · 48px</p>
+  </div>
+  <div class="footer-tab"><span>Mari brand &amp; UX style guide</span><span>04 — Shape &amp; texture</span></div>
+</section>
+
+<!-- ===== PAGE 5: DO/DONT ===== -->
+<section class="page">
+  <div class="kicker">▪ 04 — Rules</div>
+  <h1 style="font-size:28px;">Do / don't</h1>
+  <p class="lede">Iconography is lucide-react only. Voice is plainspoken, genuine, dry wit, no mascot. Full voice guide: <span style="font-family:var(--font-mono); font-size:11.5px;">mari/web/web/STYLE.md</span>.</p>
+
+  <table>
+    <tr><th style="width:50%;">Do</th><th>Don't</th></tr>
+    <tr><td class="do">One espelette accent per screen</td><td class="dont">Espelette as a repeated decorative color</td></tr>
+    <tr><td class="do">Inter + JetBrains Mono only</td><td class="dont">Any serif, any third typeface</td></tr>
+    <tr><td class="do">Hairline ink borders for separation</td><td class="dont">Soft drop shadows in app/console UI</td></tr>
+    <tr><td class="do">lucide-react icons</td><td class="dont">Hand-drawn, plant, or "sketch filter" icons</td></tr>
+    <tr><td class="do">Sharp corners (0 brand / 4–6px app)</td><td class="dont">Large rounded corners, pill-shaped cards</td></tr>
+    <tr><td class="do">Dot-matrix as a faint background wash</td><td class="dont">Dot-matrix as a solid fill or on small UI</td></tr>
+    <tr><td class="do">Semantic 5-tone status scale</td><td class="dont">Ad-hoc new colors for "just this one badge"</td></tr>
+    <tr><td class="do">Active voice, sentence case, serial comma</td><td class="dont">Title Case headings, passive voice, hype</td></tr>
+  </table>
+
+  <div class="section frame" style="padding:16px; margin-top:26px;">
+    <h3 style="font-family:var(--font-mono); text-transform:uppercase; letter-spacing:0.08em; font-size:11px; color:var(--biscay-2); margin-bottom:8px;">▪ For LLM agents</h3>
+    <p style="font-size:11.5px; font-family:var(--font-mono); line-height:1.6; color:var(--muted);">
+      See <strong style="color:var(--ink);">BRAND-STYLE-GUIDE.md</strong> in this repo for the full machine-readable
+      reference, including a ready-to-paste system-prompt fragment.
+    </p>
+  </div>
+  <div class="footer-tab"><span>Mari brand &amp; UX style guide</span><span>05 — Do / don't</span></div>
+</section>
+
+</body>
+</html>

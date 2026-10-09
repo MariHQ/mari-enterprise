@@ -1,56 +1,45 @@
 package local.mari;
-import java.nio.file.Path;
-import java.nio.file.Files;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.*;
+import java.nio.ByteBuffer;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import org.apache.flink.util.Collector;
 import org.apache.flink.types.RowKind;
-import org.apache.iceberg.*;
 import org.apache.iceberg.flink.sink.dynamic.DynamicRecord;
+import org.apache.iceberg.shaded.org.apache.avro.Schema;
+import org.apache.iceberg.shaded.org.apache.avro.generic.*;
+import org.apache.iceberg.shaded.org.apache.avro.io.EncoderFactory;
 class IngestionTest {
- static String declaration() throws Exception{return Files.readString(Path.of("ingestion.yaml"));}
- static IngestionConfig config() throws Exception{return IngestionConfig.parse(declaration());}
- static KafkaEvent event(String op) throws Exception {
-  Map<String,Object> row=new LinkedHashMap<>();row.put("version",1);row.put("table","mari.records.github.issue");row.put("project_id","1");row.put("record_id","issue:1");row.put("event_id","event:1");row.put("operation",op);row.put("kind","issue");row.put("source","github");row.put("title","");row.put("text",op.equals("delete")?"":"hello");row.put("url","");row.put("properties",Map.of());row.put("actor","github");row.put("observed_at",100);
-  return new KafkaEvent("mari.records.github.issue","[\"1\",\"issue:1\"]",new ObjectMapper().writeValueAsString(row),0,5);
+ static final String KEY="{\"type\":\"record\",\"name\":\"Key\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"}]}";
+ static final String VALUE="{\"type\":\"record\",\"name\":\"Decision\",\"fields\":[{\"name\":\"id\",\"type\":\"string\"},{\"name\":\"statement\",\"type\":\"string\"},{\"name\":\"confidence\",\"type\":\"double\"},{\"name\":\"approved\",\"type\":\"boolean\"},{\"name\":\"owners\",\"type\":{\"type\":\"array\",\"items\":\"string\"}}]}";
+ static final String YAML="version: 2\nnamespace: mari\ntopics:\n  decisions:\n    primary_key: [id]\n    partition_keys: []\n  facts:\n    primary_key: [id]\n    partition_keys: []\n";
+ static byte[] encode(int id,String schema,Object... values)throws Exception{
+  var s=new Schema.Parser().parse(schema);var r=new GenericData.Record(s);for(int i=0;i<values.length;i++)r.put(i,values[i]);
+  var b=new ByteArrayOutputStream();b.write(0);b.write(ByteBuffer.allocate(4).putInt(id).array());var encoder=EncoderFactory.get().binaryEncoder(b,null);new GenericDatumWriter<GenericRecord>(s).write(r,encoder);encoder.flush();return b.toByteArray();
  }
- static List<DynamicRecord> generate(KafkaEvent e) throws Exception {
-  List<DynamicRecord> out=new ArrayList<>();new MariGenerator(config()).generate(e,new Collector<>(){public void collect(DynamicRecord r){out.add(r);}public void close(){}});return out;
+ static WriterSchemas registry(){return new WriterSchemas(){public String byId(int id){return id==1?KEY:VALUE;}public String latestValue(String topic){return VALUE;}};}
+ static List<DynamicRecord> generate(KafkaEvent event)throws Exception {
+  var out=new ArrayList<DynamicRecord>();new MariGenerator(IngestionConfig.parse(YAML),registry()).generate(event,new Collector<>(){public void collect(DynamicRecord r){out.add(r);}public void close(){}});return out;
  }
- @Test void reusesSinkSchemasAcrossRecords() throws Exception {
-  var generator=new MariGenerator(config());var out=new ArrayList<DynamicRecord>();
-  Collector<DynamicRecord> collector=new Collector<>(){public void collect(DynamicRecord r){out.add(r);}public void close(){}};
-  generator.generate(event("upsert"),collector);generator.generate(event("delete"),collector);
-  assertSame(out.get(0).schema(),out.get(2).schema());
-  assertSame(out.get(1).schema(),out.get(3).schema());
+ static KafkaEvent event()throws Exception{return new KafkaEvent("decisions",encode(1,KEY,"d1"),encode(2,VALUE,"d1","Do it",0.75,true,List.of("alice")),0,10);}
+ @Test void oneMessageOneTypedTableNoEnvelopeOrHistory()throws Exception{
+  var output=generate(event());assertEquals(1,output.size());var r=output.get(0);
+  assertEquals("decisions",r.tableIdentifier().name());assertEquals(5,r.schema().columns().size());
+  assertNull(r.schema().findField("properties"));assertEquals("Do it",r.rowData().getString(1).toString());assertEquals(0.75,r.rowData().getDouble(2));assertTrue(r.rowData().getBoolean(3));assertEquals("alice",r.rowData().getArray(4).getString(0).toString());
+  assertEquals(Set.of("id"),r.equalityFields());
  }
- @Test void currentDeleteAndHistoryAreDistinct() throws Exception {
-  var insert=generate(event("upsert"));assertEquals(2,insert.size());assertEquals(RowKind.INSERT,insert.get(0).rowData().getRowKind());
-  var deleted=generate(event("delete"));assertEquals(RowKind.DELETE,deleted.get(0).rowData().getRowKind());assertEquals(RowKind.INSERT,deleted.get(1).rowData().getRowKind());
-  assertEquals(Set.of("project_id","record_id"),deleted.get(0).equalityFields());assertEquals(Set.of("project_id","record_id","event_id"),deleted.get(1).equalityFields());assertEquals(5,deleted.get(1).rowData().getLong(13));
+ @Test void tombstoneEmitsOnlyEqualityDeleteToSameTable()throws Exception{
+  var e=event();e.value=null;var out=generate(e);assertEquals(1,out.size());assertEquals(RowKind.DELETE,out.get(0).rowData().getRowKind());assertEquals("d1",out.get(0).rowData().getString(0).toString());
  }
- @Test void rejectsUnorderedOrUnroutableInput() throws Exception {
-  var wrongKey=event("upsert");wrongKey.key="[\"other\",\"issue:1\"]";assertThrows(IllegalArgumentException.class,()->generate(wrongKey));
-  var wrongTopic=event("upsert");wrongTopic.topic="mari.records.github.undeclared";assertThrows(IllegalArgumentException.class,()->generate(wrongTopic));
-  var mismatch=event("upsert");mismatch.value=mismatch.value.replace("\"source\":\"github\"","\"source\":\"slack\"");assertThrows(IllegalArgumentException.class,()->generate(mismatch));
-  var tombstone=event("delete");tombstone.value=null;assertThrows(IllegalArgumentException.class,()->generate(tombstone));
+ @Test void rejectsLegacyJsonAndWrongKeys()throws Exception{
+  var e=event();e.value="{\"properties\":{}}".getBytes();assertThrows(IllegalArgumentException.class,()->generate(e));
+  var mismatch=event();mismatch.key=encode(1,KEY,"different");assertThrows(IllegalArgumentException.class,()->generate(mismatch));
+  var unknown=event();unknown.topic="unknown";assertThrows(IllegalArgumentException.class,()->generate(unknown));
  }
- @Test void rejectsUnsafeDeclarations() throws Exception {
-  String yaml=declaration();
-  assertThrows(IllegalArgumentException.class,()->IngestionConfig.parse(yaml.replace("primary_key: [project_id, record_id]","primary_key: [record_id]")));
-  assertThrows(IllegalArgumentException.class,()->IngestionConfig.parse(yaml.replace("partition_keys: [project_id]","partition_keys: [observed_at]")));
-  assertThrows(Exception.class,()->IngestionConfig.parse(yaml+"version: 1\n"));
+ @Test void requiresExplicitSafeKeys(){
+  assertThrows(IllegalArgumentException.class,()->IngestionConfig.parse(YAML.replace("partition_keys: []","partition_keys: [missing]")));
+  assertThrows(Exception.class,()->IngestionConfig.parse(YAML+"version: 2\n"));
   assertThrows(Exception.class,()->IngestionConfig.parse("!!java.net.URL [http://example.com]"));
- }
- @Test void refusesExistingSchemaAndPartitionChanges() throws Exception {
-  var c=config();var schema=c.schema("current");
-  var metadata=TableMetadata.newTableMetadata(schema,c.spec("current"),"file:///unused",Map.of("format-version","2"));
-  Table table=new BaseTable(new TableOperations(){public TableMetadata current(){return metadata;}public TableMetadata refresh(){return metadata;}public void commit(TableMetadata b,TableMetadata n){throw new AssertionError("must not mutate");}public org.apache.iceberg.io.FileIO io(){throw new UnsupportedOperationException();}public String metadataFileLocation(String f){return f;}public org.apache.iceberg.io.LocationProvider locationProvider(){throw new UnsupportedOperationException();}},"existing");
-  SchemaApply.validate(table,c,"current");
-  assertThrows(IllegalStateException.class,()->SchemaApply.validate(table,c,"history"));
-  var changed=IngestionConfig.parse(declaration().replace("partition_keys: [project_id]","partition_keys: [project_id, record_id]"));
-  assertThrows(IllegalStateException.class,()->SchemaApply.validate(table,changed,"current"));
  }
 }

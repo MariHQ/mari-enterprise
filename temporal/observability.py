@@ -4,7 +4,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from temporalio import activity, workflow
-from apps.sdk.data.mappings import topic_for
+from apps.base.ingestion.mappings import topic_for
 from temporalio.common import RetryPolicy
 
 
@@ -24,7 +24,7 @@ class ObserveTemporal:
 
 
 def event_for(identity, kind, title, properties):
-    from apps.sdk.data.records import KnowledgeChange
+    from apps.base.ingestion.records import KnowledgeChange
     revision=hashlib.sha256(json.dumps(properties,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     return KnowledgeChange(table=topic_for('temporal',kind),record_id=identity,event_id=identity+':'+revision,operation='upsert',
         kind=kind,source='temporal',title=title,properties=properties,actor='temporal-observer'),revision
@@ -42,7 +42,7 @@ def iso(value):return value.isoformat() if value else None
 async def observe_temporal(request:dict):
     import os
     from temporalio.client import Client
-    from apps.sdk.data.ingestion import publish_changes
+    from apps.base.ingestion.ingestion import publish_changes
     c=await Client.connect(os.getenv('TEMPORAL_ADDRESS','temporal.stack.svc:7233'), namespace=os.getenv('TEMPORAL_NAMESPACE', 'default'))
     previous=request.get('known',{}); known={}; changes=[]
     def emit(item):
@@ -55,7 +55,7 @@ async def observe_temporal(request:dict):
         identity='temporal:connector:'+provider
         for target in filter(None,os.getenv(variable,'').split(',')) if provider != 'slack' else []:
             workflow_id='poll-sync-'+provider+'-'+hashlib.sha256(target.encode()).hexdigest()[:12]
-            targets.append({'target':target,'workflow_id':workflow_id,'interval_seconds':900})
+            targets.append({'target':target,'workflow_id':workflow_id,'interval_seconds':86400})
             emit(event_for('temporal:workflow:'+workflow_id,'temporal_workflow','SourceSync',{'workflow_id':workflow_id,'workflow_type':'SourceSync'}))
             emit(edge_for(identity,'polls','temporal:workflow:'+workflow_id))
         if targets:
@@ -83,13 +83,14 @@ async def observe_temporal(request:dict):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=1)).isoformat()
     count=0; observed_runs=set()
     async for run in c.list_workflows(query=f'WorkflowType != "ObserveTemporal" AND (ExecutionStatus="Running" OR StartTime>="{cutoff}")',limit=1000):
-        if run.workflow_type == 'ObserveTemporal':
+        if run.workflow_type == 'ObserveTemporal' or run.id==activity.info().workflow_id:
             continue
         activity.heartbeat('Reading workflow states'); count+=1
-        wid='temporal:workflow:'+run.id
-        emit(event_for(wid,'temporal_workflow',run.workflow_type,{'workflow_id':run.id,'workflow_type':run.workflow_type}))
+        logical_id=(run.search_attributes.get('TemporalScheduledById') or [run.id])[0]
+        wid='temporal:workflow:'+logical_id
+        emit(event_for(wid,'temporal_workflow',run.workflow_type,{'workflow_id':logical_id,'workflow_type':run.workflow_type}))
         identity='temporal:run:'+run.run_id; observed_runs.add(identity)
-        properties={'workflow_id':run.id,'run_id':run.run_id,'workflow_type':run.workflow_type,
+        properties={'workflow_id':logical_id,'execution_workflow_id':run.id,'run_id':run.run_id,'workflow_type':run.workflow_type,
             'status':run.status.name,'started_at':iso(run.start_time),'finished_at':iso(run.close_time),
             'duration_seconds':(run.close_time-run.start_time).total_seconds() if run.close_time else None}
         if run.status.name=='RUNNING' and run.workflow_type in ('MineKnowledge','SourceSync'):
@@ -125,7 +126,7 @@ async def observe_temporal(request:dict):
                     'state':a.state,'attempt':a.attempt,'workflow_id':run.id,'run_id':run.run_id,
                     'error':a.last_failure.message[:500] if a.HasField('last_failure') else None}))
                 emit(edge_for(identity,'has_activity',aid))
-    from apps.sdk.data.records import KnowledgeChange
+    from apps.base.ingestion.records import KnowledgeChange
     for identity in previous:
         if ':activity:' in identity and identity.split(':activity:')[0] in observed_runs and identity not in known:
             parent=identity.split(':activity:')[0]
@@ -147,7 +148,7 @@ async def observe_temporal(request:dict):
     # The watermark describes the last changed projection, not a clock heartbeat.
     if changes or 'temporal:observation' not in previous:
         emit(event_for('temporal:observation','temporal_observation','Temporal status projection',{
-            'observed_at':datetime.now(timezone.utc).isoformat(),'workflow_count':count,
+            'projection_observed_at':datetime.now(timezone.utc).isoformat(),'workflow_count':count,
             'window_hours':24,'limit':1000,'possibly_truncated':count==1000}))
     else:
         known['temporal:observation'] = previous['temporal:observation']

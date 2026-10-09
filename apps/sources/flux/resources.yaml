@@ -14,6 +14,9 @@ spec:
       containers:
       - name: register
         image: mari-app-base:local
+        resources:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {cpu: 500m, memory: 512Mi}
         command:
         - python
         - /scripts/register.py
@@ -58,7 +61,7 @@ spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/min-scale: '0'
+        autoscaling.knative.dev/min-scale: '1'
         autoscaling.knative.dev/max-scale: '3'
     spec:
       containerConcurrency: 2

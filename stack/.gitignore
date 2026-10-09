@@ -1,0 +1,11 @@
+.local/
+logs/
+bin/
+terraform/.terraform/
+terraform/*.tfstate*
+terraform/*.tfplan
+pipeline/target/
+*.tar
+**/__pycache__/
+
+.idea/

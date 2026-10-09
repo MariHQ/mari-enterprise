@@ -1,0 +1,52 @@
+resources:
+- resources.yaml
+- workers.yaml
+- access.yaml
+- node.yaml
+- sandboxconfig-gvisor.yaml
+patches:
+# Keep the substrate operational without its optional metrics/tracing stack.
+- target:
+    kind: Deployment
+    namespace: otel-system
+    name: (prometheus|jaeger|opentelemetry-collector)
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 0
+- target:
+    kind: Deployment
+    namespace: ate-system
+    name: (ate-api-server|ate-controller|atenet-egress|atenet-router)
+  patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: unused
+    spec:
+      template:
+        metadata:
+          annotations:
+            mari.dev/telemetry: disabled-v2
+- target:
+    kind: DaemonSet
+    namespace: ate-system
+    name: atelet-.*
+  patch: |-
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: unused
+    spec:
+      template:
+        metadata:
+          annotations:
+            mari.dev/telemetry: disabled-v2
+- target:
+    kind: DaemonSet
+    namespace: ate-system
+    name: atelet-.*
+  patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: --actor-stats-poll-interval=0

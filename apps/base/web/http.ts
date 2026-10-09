@@ -8,7 +8,9 @@ function appRequest(input:RequestInfo|URL,init?:RequestInit):Promise<Response> {
 // Shared session recovery for authenticated platform HTTP requests.
 let activeProject = '';
 export function setActiveProject(project: string | number | null) {
-  activeProject = project == null ? '' : String(project);
+  const next = project == null ? '' : String(project);
+  if (next === activeProject) return;
+  activeProject = next;
   clearQueryCache();
 }
 export function projectHeaders(): Record<string,string> {

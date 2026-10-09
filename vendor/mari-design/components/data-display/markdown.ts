@@ -1,0 +1,423 @@
+// Hand-rolled, dependency-free markdown parser ported from the DocReview
+// editor (mari-cloud/web/src/pages/docreview/markdown.ts). No npm parser —
+// this is the real thing, tuned to the blocks the console produces.
+//
+// The contract this module has to keep is ROUND TRIP, not prettiness:
+// `serializeBlocks(parseMarkdown(md))` is what Doc Review writes back to the
+// server, so anything the parser cannot describe is data the user loses on
+// Save. The first version of this file described six block types and threw the
+// rest away — links, ordered lists, tables, blockquotes, h4–h6, rules, front
+// matter, nested indentation and hard line breaks all came back as flattened
+// prose or as nothing at all.
+//
+// So there are now two kinds of block:
+//
+//   * editable blocks — headings, paragraphs, list items, fenced code. The
+//     editor renders these as contentEditable and re-serializes them from the
+//     DOM, so every field they carry (heading level, list marker, indent,
+//     fence, tightness) exists to put the line back the way it was found.
+//   * opaque blocks — `raw` is set. Tables, blockquotes, rules, front matter,
+//     HTML, footnote definitions, indented code, setext headings. The editor
+//     shows them read-only and `blockToMarkdown` returns `raw` verbatim, so
+//     they cost nothing on a save even though nobody can edit them here.
+//
+// The only thing a round trip normalises is vertical whitespace: runs of blank
+// lines collapse to one and the trailing newline is dropped. Text never
+// changes.
+//
+// Pure functions — safe on the server, no DOM required.
+
+export type BlockType = "h1" | "h2" | "h3" | "p" | "li" | "code";
+
+/** What an opaque block actually is. The editor uses it to say what it is
+    declining to edit, and `MarkdownView` uses it to render the thing properly
+    instead of dumping its source. */
+export type RawKind =
+  | "frontmatter" | "hr" | "quote" | "table" | "html"
+  | "indented-code" | "footnote" | "setext" | "list";
+
+export type Block = {
+  id: number;
+  type: BlockType;
+  /** Inline HTML for prose blocks; escaped text for code blocks. */
+  html: string;
+  /** Info string captured from a ``` fence (a language, usually). */
+  lang?: string;
+  /** Heading written without a space after the hashes ("##1. Overview"). */
+  tight?: boolean;
+  /** True heading depth, 1–6. Only set for h4–h6: those have no editing style
+      of their own, so they carry `type: "h3"` (the smallest heading the editor
+      draws) and this is what serializes. */
+  level?: number;
+  /** The list marker exactly as written: "-", "*", "+", "1.", "7)". This is
+      what makes an ordered list still ordered after a save. */
+  marker?: string;
+  /** Leading spaces on a list item or a code fence — list nesting depth. */
+  indent?: number;
+  /** A blank line stood before this list item (a "loose" list). */
+  loose?: boolean;
+  /** The literal fence a code block was written with (``` or ~~~, any length). */
+  fence?: string;
+  /** Verbatim markdown for a construct the editor cannot edit. When this is
+      set it is the ONLY thing that serializes: nothing is reformatted. */
+  raw?: string;
+  /** Which construct `raw` holds. */
+  rawKind?: RawKind;
+};
+
+let blockSeq = 1;
+const nid = () => blockSeq++;
+
+export const escapeHtml = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Attribute-safe: the link/image pass writes URLs and titles into quoted
+    attributes, and a bare `"` there would end the attribute early. */
+const attr = (s: string): string => s.replace(/"/g, "&quot;");
+
+/* ————— URL scheme allowlist (DD-68) —————
+   The markdown this renders is NOT authored by us: it is synced from Slack,
+   GitHub, Confluence, Google Drive and user uploads, and `MarkdownView` injects
+   the html below through `dangerouslySetInnerHTML`. Escaping the text is not
+   enough — `[x](javascript:alert(1))` never contains a `<`, so it survives
+   `escapeHtml` untouched and lands in a live `href`. That is stored XSS.
+
+   So every href/src is scheme-checked here. A rejected URL is NOT dropped: the
+   anchor/image is still emitted with its text and alt intact, carrying the
+   original URL in `data-mdhref` / `data-mdsrc` instead of `href` / `src`. An
+   `<a>` without an href is inert markup, not a link — and because the original
+   string is still in the tag verbatim, `inlineToMarkdown` puts it back exactly
+   as it was written and the byte-exact round trip is unaffected. */
+
+const ALLOWED_SCHEMES = new Set(["http", "https", "mailto"]);
+const SCHEME = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/;
+
+/** Named entities worth decoding for the scheme check. `&colon;` and `&Tab;`
+    are the two that show up in real `javascript&colon;` payloads. */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", colon: ":",
+  Tab: "\t", NewLine: "\n", sol: "/", nbsp: " ",
+};
+
+const ENTITY = /&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|([a-zA-Z][a-zA-Z0-9]{1,31}));?/g;
+
+const fromCode = (cp: number, fallback: string): string =>
+  cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : fallback;
+
+const decodeEntities = (s: string): string =>
+  s.replace(ENTITY, (m, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+    if (dec !== undefined) return fromCode(Number(dec), m);
+    if (hex !== undefined) return fromCode(parseInt(hex, 16), m);
+    return (name !== undefined && NAMED_ENTITIES[name]) || m;
+  });
+
+/* Everything a URL parser throws away before it reads the scheme: C0 controls
+   (`java\x01script:`), DEL, ASCII space, and the Unicode spaces. Tab/newline
+   cannot reach here through the link regex today, but they are stripped too so
+   this stays correct if that regex ever loosens. */
+const URL_NOISE = /[\x00-\x20\x7f\u00a0\u1680\u180e\u2000-\u200d\u2028\u2029\u202f\u205f\u2060\u3000\ufeff]/g;
+
+/** True when this href/src may be emitted as a real `href`/`src`.
+    Relative paths, `#anchor`, `?query` and protocol-relative `//host` have no
+    scheme at all and are allowed; anything that names a scheme must name one on
+    the allowlist. The decode/strip pass runs twice so a double-encoded scheme
+    (`&amp;#106;avascript:`) is judged on what it can decode to, not on what it
+    happens to look like in source. */
+export const isSafeUrl = (url: string): boolean => {
+  let u = url;
+  for (let i = 0; i < 2; i++) u = decodeEntities(u).replace(URL_NOISE, "");
+  const m = SCHEME.exec(u);
+  return !m || ALLOWED_SCHEMES.has(m[1].toLowerCase());
+};
+
+/** Escape, then apply the inline constructs the editor can also produce from
+    its own toolbar: images, links, **bold**, *italic*, ~~strike~~, `code`, and
+    hard line breaks (two trailing spaces, or a trailing backslash).
+
+    Underscore emphasis (`_like this_`) is deliberately NOT parsed. It has no
+    distinct HTML of its own, so it would serialize back as `*like this*` and
+    silently rewrite the author's file; left alone it survives as literal text.
+    Same reasoning for autolinks: `<https://x>` escapes to `&lt;…&gt;` and comes
+    back out of `unescapeHtml` byte for byte. */
+export const mdInline = (s: string): string =>
+  escapeHtml(s)
+    .replace(
+      /!\[([^\]]*)\]\(([^)\s]*)(?:[ \t]+"([^"]*)")?\)/g,
+      (_m, alt: string, src: string, title?: string) =>
+        // A rejected src becomes `data-mdsrc`: the browser has nothing to fetch
+        // or execute, the alt text still shows, and the URL is still here for
+        // `inlineToMarkdown` to write back (DD-68).
+        `<img ${isSafeUrl(src) ? "src" : "data-mdsrc"}="${attr(src)}" alt="${attr(alt)}"${title ? ` title="${attr(title)}"` : ""}${isSafeUrl(src) ? "" : ' data-unsafe-url=""'}>`,
+    )
+    .replace(
+      /\[([^\]]*)\]\(([^)\s]*)(?:[ \t]+"([^"]*)")?\)/g,
+      (_m, text: string, href: string, title?: string) =>
+        // A rejected href becomes `data-mdhref`. An anchor with no href is not
+        // a link: not clickable, not focusable, nothing to navigate to. The
+        // link TEXT is kept — dropping it would lose the author's words as well
+        // as the attack (DD-68).
+        `<a ${isSafeUrl(href) ? "href" : "data-mdhref"}="${attr(href)}"${title ? ` title="${attr(title)}"` : ""}${isSafeUrl(href) ? "" : ' data-unsafe-url=""'}>${text}</a>`,
+    )
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<i>$2</i>")
+    .replace(/~~([^~]+)~~/g, "<s>$1</s>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/(?:[ \t]{2,}|\\)\n/g, "<br>\n");
+
+/* ————— line classifiers ————— */
+
+// A heading is 1–6 hashes optionally followed by whitespace ("##1. Overview"
+// is a real heading in live docs). `tight` records the missing space. The old
+// `{1,3}` bound is what left "#### Appendix" in the body as literal hashes.
+const HEADING = /^(#{1,6})(?!#)([ \t]*)(.*)$/;
+const FENCE = /^([ \t]{0,3})(`{3,}|~{3,})[ \t]*(.*)$/;
+const HR = /^[ \t]{0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/;
+const LIST = /^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+)(.*)$/;
+const QUOTE = /^[ \t]{0,3}>/;
+const HTML_BLOCK = /^[ \t]{0,3}<[a-zA-Z!/]/;
+const INDENTED = /^(?: {4}|\t)/;
+const FOOTNOTE = /^[ \t]{0,3}\[\^[^\]]+\]:/;
+const SETEXT = /^[ \t]{0,3}(?:={2,}|-{2,})[ \t]*$/;
+// A pipe table is recognised by its delimiter row, never by the header alone:
+// a sentence with a pipe in it is not a table.
+const TABLE_DELIM = /^[ \t]{0,3}\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$/;
+
+const isBlank = (l: string) => l.trim() === "";
+/** Does this line end whatever block is being gathered? */
+const startsBlock = (l: string) =>
+  FENCE.test(l) || HEADING.test(l) || HR.test(l) || QUOTE.test(l) || TABLE_DELIM.test(l);
+
+const unescapeHtml = (s: string): string =>
+  s.replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
+/** The inverse of `mdInline`: every tag it can produce becomes its marker
+    again, any other tag the browser left behind (a `<span style>`, a `<u>`) is
+    dropped, and entities are unescaped last so a literal `&lt;` survives.
+
+    Whitespace is collapsed per line rather than across the whole block, so a
+    paragraph that was written over three lines is still three lines, and a
+    `<br>` comes back as markdown's two-space hard break. Collapsing every run
+    of whitespace — what this used to do — is what flattened multi-line prose
+    into one long line on the first save. */
+const inlineToMarkdown = (html: string): string => {
+  // A sentinel, because the hard break has to survive the trailing-space trim
+  // two steps below and then become trailing spaces again.
+  const BR = " ";
+  return unescapeHtml(
+    html
+      .replace(/<br\s*\/?>\n?/gi, `${BR}\n`)
+      // Attributes are read from the OPENING TAG only (`attrs`), never from the
+      // whole match: link text is escaped prose, and prose containing the
+      // literal `href="…"` would otherwise be mistaken for the tag's own href.
+      .replace(/<img\b([^>]*)>/gi, (_tag: string, attrs: string) => {
+        // `data-mdsrc` is where a scheme-rejected URL lives (DD-68). It has to
+        // serialize back as the src the author wrote, or a blocked image would
+        // silently lose its URL on the next save.
+        const src = /\bsrc="([^"]*)"/i.exec(attrs)?.[1]
+          ?? /\bdata-mdsrc="([^"]*)"/i.exec(attrs)?.[1] ?? "";
+        const alt = /\balt="([^"]*)"/i.exec(attrs)?.[1] ?? "";
+        const title = /\btitle="([^"]*)"/i.exec(attrs)?.[1];
+        return `![${alt}](${src}${title ? ` "${title}"` : ""})`;
+      })
+      .replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (_tag: string, attrs: string, inner: string) => {
+        const href = /\bhref="([^"]*)"/i.exec(attrs)?.[1]
+          ?? /\bdata-mdhref="([^"]*)"/i.exec(attrs)?.[1] ?? "";
+        const title = /\btitle="([^"]*)"/i.exec(attrs)?.[1];
+        return `[${inner}](${href}${title ? ` "${title}"` : ""})`;
+      })
+      .replace(/<\/?(?:b|strong)>/gi, "**")
+      .replace(/<\/?(?:i|em)>/gi, "*")
+      .replace(/<\/?(?:s|del|strike)>/gi, "~~")
+      .replace(/<\/?code>/gi, "`")
+      .replace(/<[^>]*>/g, ""),
+  )
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ +\n/g, "\n")
+    .split(BR).join("  ")
+    .trim();
+};
+
+/** One block back to the markdown it was parsed from. */
+export function blockToMarkdown(b: Block): string {
+  // An opaque block is returned exactly as it was found. This is the whole
+  // point of opaque blocks: a table nobody can edit here still costs nothing.
+  if (b.raw !== undefined) return b.raw;
+
+  const pad = " ".repeat(b.indent ?? 0);
+  if (b.type === "code") {
+    const fence = b.fence ?? "```";
+    return `${pad}${fence}${b.lang ?? ""}\n${unescapeHtml(b.html)}\n${pad}${fence}`;
+  }
+
+  const text = inlineToMarkdown(b.html);
+  if (b.type === "li") {
+    const marker = b.marker ?? "-";
+    // Continuation lines line up under the item's text, which is what makes
+    // them continuation lines rather than a new paragraph.
+    const cont = " ".repeat(pad.length + marker.length + 1);
+    return pad + marker + " " + text.split("\n").join("\n" + cont);
+  }
+  if (b.type === "p") return text;
+  return "#".repeat(b.level ?? Number(b.type[1])) + (b.tight ? "" : " ") + text;
+}
+
+/** Blocks back to one markdown document. Consecutive list items stay adjacent
+    (that is one list); everything else is separated by a blank line, which is
+    what `parseMarkdown` treats as a block boundary. */
+export function serializeBlocks(blocks: Block[]): string {
+  let out = "";
+  blocks.forEach((b, i) => {
+    if (i > 0) {
+      const tight = blocks[i - 1].type === "li" && b.type === "li" && !b.loose;
+      out += tight ? "\n" : "\n\n";
+    }
+    out += blockToMarkdown(b);
+  });
+  return out;
+}
+
+/** Parse markdown into a flat list of blocks. */
+export function parseMarkdown(md: string): Block[] {
+  const blocks: Block[] = [];
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const n = lines.length;
+  let i = 0;
+
+  const raw = (from: number, to: number, rawKind: RawKind): void => {
+    const src = lines.slice(from, to).join("\n");
+    // `html` mirrors the source so anything that renders a block by its html
+    // (the markdown-engine showcase, a decorator) shows the source rather than
+    // an empty box. `raw` is what serializes.
+    blocks.push({ id: nid(), type: "p", html: escapeHtml(src), raw: src, rawKind });
+  };
+
+  // Front matter only counts at the very top of the file; anywhere else `---`
+  // is a horizontal rule.
+  if (lines[0] === "---") {
+    let j = 1;
+    while (j < n && lines[j] !== "---" && lines[j] !== "...") j++;
+    if (j < n) { raw(0, j + 1, "frontmatter"); i = j + 1; }
+  }
+
+  while (i < n) {
+    const line = lines[i];
+
+    if (isBlank(line)) { i++; continue; }
+
+    const fence = FENCE.exec(line);
+    if (fence) {
+      const close = fence[2][0];
+      const code: string[] = [];
+      i++;
+      while (i < n && !new RegExp(`^[ \\t]{0,3}\\${close}{${fence[2].length},}[ \\t]*$`).test(lines[i])) {
+        code.push(lines[i]); i++;
+      }
+      i++; // closing fence
+      blocks.push({
+        id: nid(), type: "code", lang: fence[3] || "", html: escapeHtml(code.join("\n")),
+        fence: fence[2], indent: fence[1].length || undefined,
+      });
+      continue;
+    }
+
+    const head = HEADING.exec(line);
+    if (head) {
+      const level = head[1].length;
+      blocks.push({
+        id: nid(),
+        type: (["h1", "h2", "h3"] as const)[Math.min(level, 3) - 1],
+        html: mdInline(head[3].replace(/\s+$/, "")),
+        tight: head[2] === "" || undefined,
+        level: level > 3 ? level : undefined,
+      });
+      i++;
+      continue;
+    }
+
+    if (HR.test(line)) { raw(i, i + 1, "hr"); i++; continue; }
+
+    if (QUOTE.test(line)) {
+      const from = i;
+      while (i < n && !isBlank(lines[i]) && !FENCE.test(lines[i])) i++;
+      raw(from, i, "quote");
+      continue;
+    }
+
+    if (FOOTNOTE.test(line)) {
+      const from = i;
+      i++;
+      while (i < n && !isBlank(lines[i])) i++;
+      raw(from, i, "footnote");
+      continue;
+    }
+
+    if (line.includes("|") && i + 1 < n && TABLE_DELIM.test(lines[i + 1])) {
+      const from = i;
+      while (i < n && !isBlank(lines[i]) && lines[i].includes("|")) i++;
+      raw(from, i, "table");
+      continue;
+    }
+
+    if (HTML_BLOCK.test(line)) {
+      const from = i;
+      while (i < n && !isBlank(lines[i])) i++;
+      raw(from, i, "html");
+      continue;
+    }
+
+    if (INDENTED.test(line)) {
+      const from = i;
+      while (i < n && (INDENTED.test(lines[i]) || isBlank(lines[i]))) i++;
+      while (i > from && isBlank(lines[i - 1])) i--;
+      raw(from, i, "indented-code");
+      continue;
+    }
+
+    if (LIST.test(line)) {
+      const from = i;
+      const run: string[] = [];
+      while (i < n && !isBlank(lines[i]) && !startsBlock(lines[i])) { run.push(lines[i]); i++; }
+      // Items and their lazy continuation lines. A run that starts with a
+      // marker but whose first line is not one cannot happen, so the only way
+      // `items` stays empty is a classifier disagreement — keep the source.
+      const items: { indent: number; marker: string; text: string[] }[] = [];
+      for (const l of run) {
+        const m = LIST.exec(l);
+        if (m) items.push({ indent: m[1].length, marker: m[2], text: [m[4]] });
+        else if (items.length) items[items.length - 1].text.push(l.trim());
+      }
+      if (!items.length) { raw(from, i, "list"); continue; }
+      const loose = blocks[blocks.length - 1]?.type === "li";
+      items.forEach((it, k) => {
+        blocks.push({
+          id: nid(), type: "li", html: mdInline(it.text.join("\n")),
+          marker: it.marker, indent: it.indent || undefined,
+          loose: k === 0 && loose ? true : undefined,
+        });
+      });
+      continue;
+    }
+
+    // Paragraph: this line plus every following line that does not open a
+    // block of its own.
+    const from = i;
+    const para: string[] = [lines[i]];
+    let setext = false;
+    i++;
+    while (i < n && !isBlank(lines[i])) {
+      // "Title" over "-----" is a setext heading, not a paragraph followed by
+      // a rule — and the two are not interchangeable, because serializing puts
+      // a blank line between blocks. It has no editable form here, so the pair
+      // is kept verbatim. This test has to come before `startsBlock`, which
+      // reads the same underline as a horizontal rule.
+      if (SETEXT.test(lines[i])) { i++; setext = true; break; }
+      if (startsBlock(lines[i]) || LIST.test(lines[i])) break;
+      para.push(lines[i]); i++;
+    }
+    if (setext) raw(from, i, "setext");
+    else blocks.push({ id: nid(), type: "p", html: mdInline(para.join("\n")) });
+  }
+
+  return blocks;
+}

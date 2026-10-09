@@ -1,12 +1,12 @@
 from pathlib import Path
-from apps.sdk.screen import create_screen
-from .lineage import router as lineage_router
 from fastapi import APIRouter
-from .lineage import lineage
-links_router=APIRouter()
-@links_router.get("/api/links")
-def links(focal:str):
-    result=lineage(focal,30)
-    return {"rows":result["edges"],"truncated":result["has_more"]}
+from apps.base.runtime import Manifest, create_app
+from .lineage import router as router_0
+from .records import router as router_1
+from .writes import router as router_2
 
-app=create_screen('lineage',[lineage_router,links_router],Path(__file__).parent/"web/dist")
+router=APIRouter()
+router.include_router(router_0)
+router.include_router(router_1)
+router.include_router(router_2)
+app=create_app(Manifest(name='lineage'),router,Path(__file__).parent/'web/dist',api_prefix='')

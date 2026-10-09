@@ -1,79 +1,220 @@
-version: 1
-# Source of truth for topics, physical schemas, equality keys and identity partitions.
-# Changes are checked against existing tables; incompatible changes are refused.
+# One Kafka topic = one Iceberg table. Schemas come from the topic writer schema.
+version: 2
+namespace: mari
 topics:
-  - mari.records.mari.document
-  - mari.records.mari.fact
-  - mari.records.mari.decision
-  - mari.records.mari.edge
-  - mari.records.mari.review
-  - mari.records.mari.finding
-  - mari.records.mari.answer
-  - mari.records.mari.collection
-  - mari.records.mari.principal
-  - mari.records.mari.change
-  - mari.records.mari.destination
-  - mari.records.mari.project
-  - mari.records.mari.configuration
-  - mari.records.mari.model_provider
-  - mari.records.mari.model
-  - mari.records.mari.service_principal
-  - mari.records.mari.preferences
-  - mari.records.mari.presentation
-  - mari.records.substrate.trajectory
-  - mari.records.substrate.step
-  - mari.records.ax.trajectory
-  - mari.records.ax.step
-  - mari.records.ax.workflow
-  - mari.records.ax.principal
-  - mari.records.ax.edge
-  - mari.records.agent.fact
-  - mari.records.agent.decision
-  - mari.records.agent.answer
-  - mari.records.agent.trajectory
-  - mari.records.agent.step
-  - mari.records.agent.workflow
-  - mari.records.agent.mining_receipt
-  - mari.records.temporal.temporal_connector
-  - mari.records.temporal.webhook_connector
-  - mari.records.temporal.temporal_workflow
-  - mari.records.temporal.temporal_run
-  - mari.records.temporal.temporal_activity
-  - mari.records.temporal.temporal_schedule
-  - mari.records.temporal.temporal_observation
-  - mari.records.temporal.edge
-  - mari.records.github.issue
-  - mari.records.github.pull_request
-  - mari.records.github.file
-  - mari.records.github.comment
-  - mari.records.github.document
-  - mari.records.github.collection
-  - mari.records.github.principal
-  - mari.records.slack.message
-  - mari.records.slack.thread
-  - mari.records.slack.collection
-  - mari.records.slack.principal
-schema:
-  - {id: 1, name: project_id, type: string, required: true}
-  - {id: 2, name: record_id, type: string, required: true}
-  - {id: 3, name: event_id, type: string, required: true}
-  - {id: 4, name: operation, type: string, required: true}
-  - {id: 5, name: kind, type: string, required: true}
-  - {id: 6, name: source, type: string, required: true}
-  - {id: 7, name: title, type: string, required: false}
-  - {id: 8, name: text, type: string, required: false}
-  - {id: 9, name: url, type: string, required: false}
-  - {id: 10, name: properties, type: string, required: false}
-  - {id: 11, name: actor, type: string, required: false}
-  - {id: 12, name: observed_at, type: long, required: true}
-  - {id: 13, name: kafka_partition, type: int, required: true}
-  - {id: 14, name: kafka_offset, type: long, required: true}
-targets:
-  current:
-    namespace: mari_streams
+  mari.records.mari.document:
     primary_key: [project_id, record_id]
     partition_keys: [project_id]
-  history:
-    namespace: mari_history
-    primary_key: [project_id, record_id, event_id]
+    start_offsets: {0: 0}
+  mari.records.mari.fact:
+    primary_key: [project_id, record_id]
     partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.decision:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.edge:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.review:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.finding:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.answer:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.collection:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.principal:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.change:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.destination:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.project:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.configuration:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.model_provider:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.model:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.service_principal:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.preferences:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.mari.presentation:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.substrate.trajectory:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.substrate.step:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.ax.trajectory:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.ax.step:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.ax.workflow:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.ax.principal:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.ax.edge:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.fact:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.decision:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.answer:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.trajectory:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.step:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.workflow:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.mining_receipt:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_connector:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_workflow:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_run:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_activity:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_schedule:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.temporal_observation:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.temporal.edge:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.issue:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.pull_request:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.file:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.comment:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.document:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.collection:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.github.principal:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.slack.message:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.slack.thread:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.slack.collection:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.slack.principal:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.review:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.entity:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.evidence:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}
+  mari.records.agent.run:
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+    start_offsets: {0: 0}

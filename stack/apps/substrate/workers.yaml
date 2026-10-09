@@ -1,0 +1,16 @@
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: stack-workers
+  namespace: ate-system
+spec:
+  replicas: 1
+  workerImage: localhost:5001/ateom-gvisor-715889664656de67e44382a8d6ab981d@sha256:5b19831d9a36e8046b96b53e3625a89794eb9179b650f524890e81323e16bb21
+  template:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: '2'
+        memory: 1Gi
