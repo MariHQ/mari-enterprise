@@ -43,8 +43,8 @@ The job also performs read-only validation and refuses to start until all tables
 
 ## Staged rollout, not deployed
 
-Build/tag the runtime image from this directory after `./build.sh`. The job entrypoint is `local.mari.MariJob` and jar path is `local:///opt/flink/usrlib/mari-ingestion.jar`. The image carries `/opt/flink/conf/ingestion.yaml`. Configure checkpoint storage and Flink HA/savepoints through the infrastructure deployment, using a fresh Mari checkpoint prefix and job identity. Use fresh state for this Mari topology.
+Build/tag the runtime image from this directory after `./build.sh`. The job entrypoint is `local.mari.MariJob` and jar path is `local:///opt/flink/usrlib/mari-ingestion.jar`. The image carries `/opt/mari/ingestion.yaml`. Configure checkpoint storage and Flink HA/savepoints through the infrastructure deployment, using a fresh Mari checkpoint prefix and job identity. Use fresh state for this Mari topology.
 
-Run schema application using `local.mari.SchemaApply /opt/flink/conf/ingestion.yaml --apply` from the same image and catalog credentials. Generate/review the KafkaTopic manifests from the YAML, apply tables, register OrchidDB nodes/edges, and start Mari ingestion only during an explicitly authorized rollout. The shared stack deployment is separate and unchanged.
+Run schema application using `local.mari.SchemaApply /opt/mari/ingestion.yaml --apply` from the same image and catalog credentials. Generate/review the KafkaTopic manifests from the YAML, apply tables, register OrchidDB nodes/edges, and start Mari ingestion only during an explicitly authorized rollout. The shared stack deployment is separate and unchanged.
 
 The staged Flux entrypoint is `../flux/kustomization.yaml`. Its suspended dependency chain is topics → schema-apply Job → app/graph-registration Jobs → FlinkDeployment. Each stage waits for readiness before dependents proceed, and pruning is disabled so removing a topic declaration does not delete Kafka data. A `GitRepository` named `mari` in `flux-system` and deployable image references are prerequisites for a future explicitly authorized activation. No stage is referenced by the active stack.

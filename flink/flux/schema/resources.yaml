@@ -20,7 +20,7 @@ spec:
         - -cp
         - /opt/flink/usrlib/*:/opt/flink/lib/*
         - local.mari.SchemaApply
-        - /opt/flink/conf/ingestion.yaml
+        - /opt/mari/ingestion.yaml
         - --apply
         envFrom:
         - secretRef:

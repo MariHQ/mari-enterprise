@@ -10,5 +10,6 @@ RUN curl -fsSL https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/j
 RUN curl -fsSL https://repo.maven.apache.org/maven2/org/apache/hadoop/hadoop-client-api/3.3.6/hadoop-client-api-3.3.6.jar -o /opt/flink/lib/hadoop-client-api.jar \
  && curl -fsSL https://repo.maven.apache.org/maven2/org/apache/hadoop/hadoop-client-runtime/3.3.6/hadoop-client-runtime-3.3.6.jar -o /opt/flink/lib/hadoop-client-runtime.jar
 COPY target/mari-ingestion.jar /opt/flink/usrlib/mari-ingestion.jar
-COPY ingestion.yaml /opt/flink/conf/ingestion.yaml
+COPY ingestion.yaml /opt/mari/ingestion.yaml
+ENV MARI_INGESTION_CONFIG=/opt/mari/ingestion.yaml
 USER flink
