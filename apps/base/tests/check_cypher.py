@@ -20,7 +20,7 @@ record('run-old','temporal_run','temporal',{'workflow_id':'wf','run_id':'old','s
 record('activity','temporal_activity','temporal',{'run_id':'rid','error':'failed'});record('schedule','temporal_schedule','temporal',{'recent_runs':[{'workflow_id':'wf'}]})
 record('trajectory','trajectory','agent',{'status':'done','step_ids':['step']});record('step','step','agent',{'ordinal':1});record('issue','issue','github')
 pq.write_table(pa.Table.from_pylist(rows),'/tmp/records.parquet')
-table=SimpleNamespace(metadata_location='/tmp/records.parquet',metadata=SimpleNamespace(table_uuid='uuid',current_schema_id=0))
+table=SimpleNamespace(current_snapshot=lambda:object(),metadata_location='/tmp/records.parquet',metadata=SimpleNamespace(table_uuid='uuid',current_schema_id=0))
 physical={(ns,'mari.records.mari.document'):table for ns in ['mari_streams','mari_history']}
 objects=definitions(physical);schema={'tables':[],'nodes':[],'edges':[],'source_metadata':[]}
 for obj in objects.values():

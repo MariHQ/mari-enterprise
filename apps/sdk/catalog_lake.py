@@ -2,6 +2,8 @@
 from contextlib import contextmanager
 import json
 from contextvars import ContextVar
+from concurrent.futures import ThreadPoolExecutor
+from threading import local
 from apps.sdk.graph import JSON_PROPERTIES
 import os
 from threading import BoundedSemaphore, Timer
@@ -31,10 +33,10 @@ def bind(database, manifest, project, physical_table=None):
     """Only published physical table references determine what an app can read."""
     from pyiceberg.catalog import load_catalog
     from apps.sdk.catalog_config import catalog_properties
-    catalog=load_catalog('mari', **catalog_properties())
     current_parts=[];history_parts=[]
     objects=manifest['objects']
     definitions=objects.values() if isinstance(objects,dict) else objects
+    selected=[]
     for obj in definitions:
         definition=obj.get('definition',obj)
         iceberg=definition.get('iceberg')
@@ -44,7 +46,19 @@ def bind(database, manifest, project, physical_table=None):
             raise ValueError('Unexpected Mari dataset namespace')
         topic=iceberg['table']
         if physical_table is not None and topic!=physical_table:continue
-        table=catalog.load_table((*namespace,topic))
+        selected.append(definition)
+    # Resolve each table once per request; independent catalog clients avoid shared
+    # authentication/session mutation while bounding metadata concurrency.
+    clients=local()
+    def load(definition):
+        if not hasattr(clients,'catalog'):
+            clients.catalog=load_catalog('mari', **catalog_properties())
+        iceberg=definition['iceberg']
+        return clients.catalog.load_table((*iceberg['namespace'],iceberg['table']))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        tables=list(pool.map(load,selected))
+    for definition,table in zip(selected,tables):
+        iceberg=definition['iceberg'];namespace=iceberg['namespace'];topic=iceberg['table']
         if str(table.metadata.table_uuid)!=iceberg['table_uuid']:
             raise ValueError('Published Iceberg table identity changed')
         columns=[]
@@ -57,7 +71,13 @@ def bind(database, manifest, project, physical_table=None):
         columns += ["lower(split_part(source,':',1)) AS source_group", "coalesce(nullif(actor,''),'Unknown owner') AS owner_name",
                     "CASE WHEN kind IN ('pr','pull_request') THEN 'Pull requests' WHEN kind IN ('message','thread','slack_message') THEN 'Conversations' ELSE 'Documents' END AS content_type",
                     "to_json(list_value(project_id,"+literal(topic)+",record_id,event_id))::VARCHAR AS event_key"]
-        projection='SELECT '+','.join(columns)+' FROM iceberg_scan('+literal(table.metadata_location)+') WHERE project_id='+literal(project)
+        source='iceberg_scan('+literal(table.metadata_location)+')'
+        if table.current_snapshot() is None:
+            # Fresh tables have no data files. Bind their declared types without
+            # repeatedly opening empty Iceberg metadata and manifests in S3.
+            types={'string':'VARCHAR','int64':'BIGINT','int32':'INTEGER'}
+            source='(SELECT '+','.join('CAST(NULL AS '+types[c['data_type']]+') AS "'+c['name']+'"' for c in definition['columns'])+' WHERE FALSE)'
+        projection='SELECT '+','.join(columns)+' FROM '+source+' WHERE project_id='+literal(project)
         alias=definition.get('table')
         if alias:
             database.execute('CREATE TEMP VIEW "'+alias.replace('"','""')+'" AS '+projection)
@@ -108,7 +128,11 @@ class CatalogLake:
                     validate_read(compiled.sql, tables={table['name'] for table in manifest['schema']['tables']})
                     with super().query_arrow(compiled,batch_size) as result:
                         yield result
-            with Connection(ReadOnlyEngine(database),manifest['schema']) as graph:
+            # Published connectors describe storage ownership. Once bound above,
+            # these tables execute in this app's embedded DuckDB engine.
+            schema={**manifest['schema'],'engines':{},'execution_engine':None,'source_metadata':[]}
+            schema['tables']=[{k:v for k,v in table.items() if k!='engine'} for table in schema['tables']]
+            with Connection(ReadOnlyEngine(database),schema) as graph:
                 def run(query,parameters=None,language='cypher',limit=1000):
                     # SQL is restricted to internal storage bindings. Public reads use Cypher.
                     if language!='cypher': raise ValueError('Mari reads require Cypher')
