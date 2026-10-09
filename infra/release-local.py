@@ -19,12 +19,12 @@ def main():
     args=parser.parse_args()
     revision=output(['git','-C',ROOT,'rev-parse','--short=12','HEAD']).strip()
     apps=json.loads((ROOT/'container/apps.json').read_text())['apps']
-    names=['app-base',*[app['id'] for app in apps],'container','ingestion','temporal']
+    names=['app-base',*[app['id'] for app in apps],'container','ingestion','temporal','compaction']
     # Validate every prebuilt image before publishing any part of the release.
     images={name:json.loads(output(['docker','image','inspect','mari-'+name+':local']))[0] for name in names}
     base_layers=images['app-base']['RootFS']['Layers']
     for name in names:
-        if name!='ingestion' and images[name]['RootFS']['Layers'][:len(base_layers)]!=base_layers:
+        if name not in ('ingestion','compaction') and images[name]['RootFS']['Layers'][:len(base_layers)]!=base_layers:
             raise ValueError(name+' does not inherit the current shared base; rebuild it first')
     refs={}
     for name in names:
@@ -36,7 +36,11 @@ def main():
     release=ROOT/'.artifacts/flux'/revision
     release.mkdir(parents=True,exist_ok=True)
     def replace_images(value):
-        if isinstance(value,dict):return {k:refs.get(v,v) if k=='image' and isinstance(v,str) else replace_images(v) for k,v in value.items()}
+        if isinstance(value,dict):
+            # The worker launches compaction Jobs, so its image reference lives in an env value.
+            if value.get('name')=='COMPACTION_IMAGE' and 'value' in value:
+                return {**value,'value':refs.get(value['value'],value['value'])}
+            return {k:refs.get(v,v) if k=='image' and isinstance(v,str) else replace_images(v) for k,v in value.items()}
         if isinstance(value,list):return [replace_images(v) for v in value]
         return value
     stages=list(yaml.safe_load_all((ROOT/'flux/stages.yaml').read_text()))

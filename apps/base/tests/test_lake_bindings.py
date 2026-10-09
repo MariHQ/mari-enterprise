@@ -42,6 +42,15 @@ class BindingsTests(unittest.TestCase):
             physical=[d for d in definitions(tables).values() if 'iceberg' in d]
             self.assertEqual(len(physical),2)
             self.assertTrue(all(len(d['columns'])==14 for d in physical))
+            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])):
+                current=LazyViews(database)
+                bind(current,{'objects':objects},'1',namespace_filter='mari_streams')
+                self.assertIn('graph_records',current.statements)
+                self.assertNotIn('history',current.statements)
+                history=LazyViews(database)
+                bind(history,{'objects':objects},'1',namespace_filter='mari_history')
+                self.assertIn('history',history.statements)
+                self.assertNotIn('graph_records',history.statements)
             database.close()
 
     def test_topics_and_logical_graph(self):

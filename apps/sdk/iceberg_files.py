@@ -5,6 +5,8 @@ position and equality deletes. Pin manifests to the loaded snapshot and apply v2
 sequence/partition rules before any app predicate, aggregation, or limit.
 """
 from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
+import json
 from pyiceberg.manifest import DataFileContent, FileFormat
 from pyiceberg.transforms import IdentityTransform
 
@@ -60,28 +62,37 @@ def manifest_source(table, snapshot=None):
             deletes.append(entry)
         else:
             raise ValueError('Unsupported Iceberg file content')
-    columns = ', '.join('d.' + identifier(field.name) for field in schema.fields)
-    parts = []
-    for entry in data:
-        file = entry.data_file
-        conditions = []
-        for removal in deletes:
-            delete = removal.data_file
-            same_partition = file.spec_id == delete.spec_id and tuple(file.partition) == tuple(delete.partition)
-            global_equality = delete.content == DataFileContent.EQUALITY_DELETES and not specs[delete.spec_id].fields
-            if not (same_partition or global_equality):
-                continue
-            if delete.content == DataFileContent.EQUALITY_DELETES:
-                if removal.sequence_number <= entry.sequence_number:
-                    continue
-                match = ' AND '.join('d.' + identifier(fields[i].name) + ' IS NOT DISTINCT FROM x.' + identifier(fields[i].name) for i in delete.equality_ids)
-            else:
-                if removal.sequence_number < entry.sequence_number:
-                    continue
-                match = 'x.file_path = ' + literal(file.file_path) + ' AND x.pos = d.file_row_number'
-            conditions.append('NOT EXISTS (SELECT 1 FROM read_parquet(' + literal(delete.file_path) + ', hive_partitioning=false) x WHERE ' + match + ')')
-        parts.append('SELECT ' + columns + ' FROM read_parquet(' + literal(file.file_path) + ', hive_partitioning=false, file_row_number=true) d' + (' WHERE ' + ' AND '.join(conditions) if conditions else ''))
-    if not parts:
+    if any(field.name in ('filename','file_row_number') for field in schema.fields):
+        raise ValueError('Reserved Parquet scan metadata field name')
+    if not data:
         types = {'string': 'VARCHAR', 'long': 'BIGINT', 'int': 'INTEGER'}
-        parts = ['SELECT ' + ', '.join('CAST(NULL AS ' + types[str(f.field_type)] + ') AS ' + identifier(f.name) for f in schema.fields) + ' WHERE FALSE']
-    return '(' + ' UNION ALL '.join(parts) + ')'
+        return '(SELECT ' + ', '.join('CAST(NULL AS ' + types[str(f.field_type)] + ') AS ' + identifier(f.name) for f in schema.fields) + ' WHERE FALSE)'
+
+    def scan(entries, columns, positions=False):
+        paths = '[' + ','.join(literal(e.data_file.file_path) for e in entries) + ']'
+        sequence = 'CASE filename ' + ' '.join('WHEN ' + literal(e.data_file.file_path) + ' THEN ' + str(e.sequence_number) for e in entries) + " ELSE error('Unrecognized Iceberg file path') END"
+        partition = 'CASE filename ' + ' '.join('WHEN ' + literal(e.data_file.file_path) + ' THEN ' + literal(json.dumps(tuple(e.data_file.partition))) for e in entries) + " ELSE error('Unrecognized Iceberg file path') END"
+        return 'SELECT ' + columns + ', filename AS __path, ' + sequence + ' AS __seq, ' + partition + ' AS __partition FROM read_parquet(' + paths + ', hive_partitioning=false, filename=true' + (', file_row_number=true' if positions else '') + ')'
+
+    # Each physical file is scanned once. A separate subquery per data/delete
+    # pair would cause quadratic remote reads as Flink adds checkpoints.
+    columns = ', '.join(identifier(field.name) for field in schema.fields)
+    ctes = ['mari_data AS (' + scan(data, columns + ', file_row_number AS __pos', True) + ')']
+    conditions = []
+    equality = defaultdict(list)
+    positional = []
+    for entry in deletes:
+        if entry.data_file.content == DataFileContent.POSITION_DELETES:
+            positional.append(entry)
+        else:
+            equality[tuple(sorted(entry.data_file.equality_ids))].append(entry)
+    for number, (ids, entries) in enumerate(equality.items()):
+        name = 'mari_equality_' + str(number)
+        keys = ', '.join(identifier(fields[i].name) for i in ids)
+        ctes.append(name + ' AS MATERIALIZED (' + scan(entries, keys) + ')')
+        match = ' AND '.join('d.' + identifier(fields[i].name) + ' IS NOT DISTINCT FROM x.' + identifier(fields[i].name) for i in ids)
+        conditions.append('NOT EXISTS (SELECT 1 FROM ' + name + ' x WHERE x.__seq > d.__seq AND x.__partition = d.__partition AND ' + match + ')')
+    if positional:
+        ctes.append('mari_positions AS MATERIALIZED (' + scan(positional, 'file_path, pos') + ')')
+        conditions.append('NOT EXISTS (SELECT 1 FROM mari_positions x WHERE x.__seq >= d.__seq AND x.__partition = d.__partition AND x.file_path = d.__path AND x.pos = d.__pos)')
+    return '(WITH ' + ', '.join(ctes) + ' SELECT ' + ', '.join('d.' + identifier(f.name) for f in schema.fields) + ' FROM mari_data d' + (' WHERE ' + ' AND '.join(conditions) if conditions else '') + ')'

@@ -55,12 +55,28 @@ def maintenance_required(request):
     return False
 
 
+async def preflight_with_heartbeats(request, interval=10):
+    """Keep the activity alive during bounded read-only manifest inspection."""
+    import asyncio
+    activity.heartbeat({'phase':'preflight','table':request.get('table','all')})
+    task=asyncio.create_task(asyncio.to_thread(maintenance_required,request))
+    try:
+        while True:
+            done,_=await asyncio.wait({task},timeout=interval)
+            if done:return task.result()
+            activity.heartbeat({'phase':'preflight','table':request.get('table','all')})
+    finally:
+        # Cancellation cannot stop a running catalog request, but no Job is created
+        # until this read-only task finishes and the activity remains active.
+        if not task.done():task.cancel()
+
+
 @activity.defn
 async def compact_iceberg(request:dict):
     import httpx
     import asyncio
     from pathlib import Path
-    if not await asyncio.to_thread(maintenance_required,request):
+    if not await preflight_with_heartbeats(request):
         return {'table':request.get('table','all'),'status':'skipped','reason':'No maintenance needed'}
     token=Path('/var/run/secrets/kubernetes.io/serviceaccount/token').read_text()
     ca='/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'

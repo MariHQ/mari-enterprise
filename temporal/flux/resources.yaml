@@ -1,3 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mari-temporal
+  namespace: stack
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mari-temporal-compaction
+  namespace: stack
+rules:
+- apiGroups: [batch]
+  resources: [jobs]
+  verbs: [create, get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mari-temporal-compaction
+  namespace: stack
+subjects:
+- kind: ServiceAccount
+  name: mari-temporal
+  namespace: stack
+roleRef:
+  kind: Role
+  name: mari-temporal-compaction
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,7 +41,8 @@ spec:
     metadata:
       labels: {app: mari-temporal}
     spec:
-      automountServiceAccountToken: false
+      serviceAccountName: mari-temporal
+      automountServiceAccountToken: true
       containers:
       - name: worker
         image: mari-temporal:local
@@ -20,6 +51,10 @@ spec:
         - secretRef: {name: aws-credentials}
         env:
         - {name: ORCHID_GRAPH, value: decisions}
+        - {name: COMPACTION_IMAGE, value: mari-compaction:local}
+        - {name: COMPACTION_CATALOG_SECRET, value: mari-iceberg-catalog}
+        - {name: COMPACTION_AWS_SECRET, value: aws-credentials}
+        - {name: MARI_JOB_NAMESPACE, value: stack}
         - name: ORCHID_CATALOG_CLIENT_SECRET
           valueFrom:
             secretKeyRef: {name: orchid-catalog, key: admin.secret}

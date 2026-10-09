@@ -61,8 +61,8 @@ spec:
         autoscaling.knative.dev/min-scale: '0'
         autoscaling.knative.dev/max-scale: '3'
     spec:
-      containerConcurrency: 8
-      timeoutSeconds: 60
+      containerConcurrency: 2
+      timeoutSeconds: 120
       containers:
       - image: mari-scheduled-tasks:local
         ports:

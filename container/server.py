@@ -180,7 +180,7 @@ def create_app(configuration=None, transport=None):
                 forwarded[key] = request.headers[key]
         # Never forward cookies, caller-supplied identity, OAuth tokens, or redirects.
         try:
-            async with httpx.AsyncClient(transport=transport, timeout=60, follow_redirects=False) as client:
+            async with httpx.AsyncClient(transport=transport, timeout=120, follow_redirects=False) as client:
                 async with client.stream(request.method, item.endpoint()+'/'+path,
                                          params=request.query_params, headers=forwarded, content=bytes(body)) as upstream:
                     if 300 <= upstream.status_code < 400:

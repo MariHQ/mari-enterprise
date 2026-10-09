@@ -33,7 +33,7 @@ def catalog_manifest():
         return result.json()['manifest']
 
 
-def bind(database, manifest, project, physical_table=None):
+def bind(database, manifest, project, physical_table=None, namespace_filter=None):
     """Only published physical table references determine what an app can read."""
     from pyiceberg.catalog import load_catalog
     from apps.sdk.catalog_config import catalog_properties
@@ -48,6 +48,7 @@ def bind(database, manifest, project, physical_table=None):
         namespace=iceberg['namespace']
         if namespace not in (['mari_streams'],['mari_history']):
             raise ValueError('Unexpected Mari dataset namespace')
+        if namespace_filter is not None and namespace != [namespace_filter]:continue
         topic=iceberg['table']
         if physical_table is not None and topic!=physical_table:continue
         selected.append(definition)
@@ -93,8 +94,10 @@ def bind(database, manifest, project, physical_table=None):
             (history_parts if namespace==['mari_history'] else current_parts).append(projection)
     if not current_parts and 'mari_streams' in empty_parts:current_parts.append(empty_parts['mari_streams'])
     if not history_parts and 'mari_history' in empty_parts:history_parts.append(empty_parts['mari_history'])
-    if not current_parts or not history_parts: raise ValueError('Current and history datasets must be published before app reads')
-    database.execute('CREATE TEMP VIEW history AS '+ ' UNION ALL '.join(history_parts))
+    if not current_parts and namespace_filter != 'mari_history' or not history_parts and namespace_filter != 'mari_streams':
+        raise ValueError('Current and history datasets must be published before app reads')
+    if history_parts:database.execute('CREATE TEMP VIEW history AS '+ ' UNION ALL '.join(history_parts))
+    if not current_parts:return
     database.execute('CREATE TEMP VIEW graph_records AS '+ ' UNION ALL '.join(current_parts))
     # Flink maintains current rows and deduplicates history by event identity.
     database.execute('CREATE TEMP VIEW records AS SELECT * FROM graph_records WHERE source <> \'temporal\' AND kind NOT IN (\'workflow\',\'mining_receipt\',\'principal\',\'change\',\'review\',\'collection\',\'trajectory\',\'step\')')
@@ -114,8 +117,12 @@ def bind(database, manifest, project, physical_table=None):
 
 class LazyViews:
     """Bind only the views referenced by compiled Cypher, not every screen's views."""
-    def __init__(self,database):
+    def __init__(self,database,resolver=None,materialize=True):
         self.database=database;self.statements={};self.ready=set()
+        self.resolver=resolver;self.materialize=materialize
+
+    def prepare(self,names):
+        if self.resolver:self.resolver(names)
 
     def execute(self,statement):
         prefix,_,_=statement.partition(' AS ')
@@ -129,7 +136,7 @@ class LazyViews:
             if table.name!=name:self.ensure(table.name)
         # A graph traversal references Record repeatedly. Read its project-scoped
         # snapshot once per request instead of rescanning S3 for every edge arm.
-        if name in ('graph_records','links'):
+        if self.materialize and name in ('graph_records','links'):
             statement=statement.replace('CREATE TEMP VIEW','CREATE TEMP TABLE',1)
         self.database.execute(statement)
         self.ready.add(name)
@@ -141,7 +148,7 @@ class CatalogLake:
         self.active=ContextVar('mari_graph_session',default=None)
 
     @contextmanager
-    def session(self, project='1', physical_table=None):
+    def session(self, project='1', physical_table=None, materialize=True):
         existing=self.active.get()
         if existing is not None:
             if existing[0] != (project,physical_table): raise ValueError('Cannot change scope inside a graph session')
@@ -155,15 +162,27 @@ class CatalogLake:
             database=duckdb.connect(config={'temp_directory':temporary.name,'max_temp_directory_size':'1GB','memory_limit':'512MB','threads':4,'extension_directory':os.getenv('DUCKDB_EXTENSION_DIRECTORY',os.path.expanduser('~/.duckdb/extensions'))})
             database.execute("CREATE SECRET mari_s3 (TYPE s3, PROVIDER credential_chain)")
             database.execute("LOAD iceberg; SET enable_http_metadata_cache=true; SET parquet_metadata_cache=true; SET disabled_optimizers='statistics_propagation'")
-            views=LazyViews(database)
-            bind(views,manifest,project,physical_table)
-            timer=Timer(30,database.interrupt);timer.start()
+            prepared=set()
+            objects=manifest['objects']
+            definitions=objects.values() if isinstance(objects,dict) else objects
+            history_names={'history'} | {obj.get('definition',obj).get('table') for obj in definitions if obj.get('definition',obj).get('iceberg',{}).get('namespace')==['mari_history']}
+            def resolve(names):
+                needed={'mari_history' if name in history_names else 'mari_streams' for name in names}
+                for namespace in sorted(needed-prepared):
+                    bind(views,manifest,project,physical_table,namespace)
+                    prepared.add(namespace)
+            views=LazyViews(database,resolve,materialize)
             from orchiddb import Connection, DuckDBEngine
             class ReadOnlyEngine(DuckDBEngine):
                 @contextmanager
                 def query_arrow(self, compiled, batch_size=1024):
                     tree=validate_read(compiled.sql, tables={table['name'] for table in manifest['schema']['tables']})
-                    for table in tree.find_all(exp.Table):views.ensure(table.name)
+                    nonlocal timer
+                    names={table.name for table in tree.find_all(exp.Table)}
+                    views.prepare(names)
+                    if timer is None:
+                        timer=Timer(30,database.interrupt);timer.start()
+                    for name in names:views.ensure(name)
                     with super().query_arrow(compiled,batch_size) as result:
                         yield result
             # Published connectors describe storage ownership. Once bound above,
@@ -194,5 +213,5 @@ class CatalogLake:
         return active[2] if active is not None else catalog_manifest()
 
     def execute(self, query, parameters=None, language='cypher', project='1', limit=1000, physical_table=None):
-        with self.session(project,physical_table) as run:
+        with self.session(project,physical_table,materialize=False) as run:
             return run(query,parameters,language,limit)
