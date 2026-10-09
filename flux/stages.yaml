@@ -1,5 +1,4 @@
-# Staged only. Requires a GitRepository named mari in flux-system pointing at this repo.
-# Resolve local image tags before explicitly activating these suspended stages.
+# Staged defaults; infra/release-local.py resolves images and activates a local OCI release.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -15,6 +14,8 @@ spec:
   prune: false
   wait: true
   timeout: 5m
+  dependsOn:
+  - name: kafka
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
@@ -30,6 +31,7 @@ spec:
     name: mari
   dependsOn:
   - name: mari-topics
+  - name: bootstrap
   prune: false
   wait: true
   timeout: 10m
@@ -48,6 +50,7 @@ spec:
     name: mari
   dependsOn:
   - name: mari-schema
+  - name: knative-kourier
   prune: false
   wait: true
   timeout: 10m
@@ -84,6 +87,7 @@ spec:
     name: mari
   dependsOn:
   - name: mari-ingestion
+  - name: temporal
   prune: false
   wait: true
   timeout: 10m

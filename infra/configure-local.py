@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Install Mari runtime Secrets from the ignored local environment; never log values."""
+import argparse
 import base64
 import json
 from pathlib import Path
@@ -18,9 +19,12 @@ def apply(name,values):
     subprocess.run(K+['apply','-f','-'],input=json.dumps(document),text=True,check=True,stdout=subprocess.DEVNULL)
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--origin',default='http://mari-container.stack.127.0.0.1.sslip.io:8084')
+    args=parser.parse_args()
     runtime=existing('mari-runtime')
     for key in ('MARI_SESSION_SECRET','MARI_APP_GRANT_SECRET'):runtime.setdefault(key,secrets.token_urlsafe(48))
-    runtime.setdefault('MARI_PUBLIC_ORIGIN','http://127.0.0.1:8088')
+    runtime['MARI_PUBLIC_ORIGIN']=args.origin
     apply('mari-runtime',runtime)
     worker=existing('mari-worker')
     allow={'GITHUB_TOKEN','GITHUB_REPOSITORIES','SLACK_BOT_TOKEN','SLACK_CHANNELS','MARI_KNOWLEDGE_PROJECT_ID','AX_MINER_IMAGE','CLAUDE_CODE_OAUTH_TOKEN'}
