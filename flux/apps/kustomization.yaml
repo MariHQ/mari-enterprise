@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../apps/overview/flux
+- ../../apps/knowledge/flux
+- ../../apps/facts/flux
+- ../../apps/decisions/flux
+- ../../apps/lineage/flux
+- ../../apps/workflows/flux
+- ../../apps/scheduled-tasks/flux
+- ../../apps/publish/flux
+- ../../apps/insights/flux
+- ../../apps/sources/flux
+- ../../apps/settings/flux
+- ../../container/flux

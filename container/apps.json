@@ -1,0 +1,283 @@
+{
+  "title": "Mari workspace",
+  "project": "1",
+  "auth": {
+    "local": {
+      "enabled": true,
+      "username": "demo",
+      "password_env": "MARI_LOCAL_PASSWORD"
+    },
+    "oidc": {
+      "enabled": true,
+      "label": "Single sign-on",
+      "issuer_env": "MARI_OIDC_ISSUER",
+      "client_id_env": "MARI_OIDC_CLIENT_ID",
+      "client_secret_env": "MARI_OIDC_CLIENT_SECRET"
+    }
+  },
+  "apps": [
+    {
+      "id": "overview",
+      "name": "Home",
+      "description": "Home in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-overview.stack.svc.cluster.local",
+      "url_env": "MARI_OVERVIEW_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/"
+      ]
+    },
+    {
+      "id": "knowledge",
+      "name": "Knowledge",
+      "description": "Knowledge in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-knowledge.stack.svc.cluster.local",
+      "url_env": "MARI_KNOWLEDGE_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/knowledge",
+        "/knowledge/doc",
+        "/library",
+        "/audit",
+        "/welcome"
+      ]
+    },
+    {
+      "id": "facts",
+      "name": "Facts",
+      "description": "Facts in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-facts.stack.svc.cluster.local",
+      "url_env": "MARI_FACTS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/facts"
+      ]
+    },
+    {
+      "id": "decisions",
+      "name": "Decisions",
+      "description": "Decisions in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-decisions.stack.svc.cluster.local",
+      "url_env": "MARI_DECISIONS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/decisions"
+      ]
+    },
+    {
+      "id": "lineage",
+      "name": "Lineage",
+      "description": "Lineage in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-lineage.stack.svc.cluster.local",
+      "url_env": "MARI_LINEAGE_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/lineage"
+      ]
+    },
+    {
+      "id": "workflows",
+      "name": "Workflows",
+      "description": "Workflows in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-workflows.stack.svc.cluster.local",
+      "url_env": "MARI_WORKFLOWS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/workflows"
+      ]
+    },
+    {
+      "id": "scheduled-tasks",
+      "name": "Scheduled tasks",
+      "description": "Scheduled tasks in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-scheduled-tasks.stack.svc.cluster.local",
+      "url_env": "MARI_SCHEDULED_TASKS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/scheduled-tasks"
+      ]
+    },
+    {
+      "id": "publish",
+      "name": "Destinations",
+      "description": "Destinations in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-publish.stack.svc.cluster.local",
+      "url_env": "MARI_PUBLISH_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/publish"
+      ]
+    },
+    {
+      "id": "insights",
+      "name": "Analytics",
+      "description": "Analytics in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-insights.stack.svc.cluster.local",
+      "url_env": "MARI_INSIGHTS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/insights"
+      ]
+    },
+    {
+      "id": "sources",
+      "name": "Sources",
+      "description": "Sources in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-sources.stack.svc.cluster.local",
+      "url_env": "MARI_SOURCES_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/sources"
+      ]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "description": "Settings in your Mari workspace.",
+      "icon": "app",
+      "url": "http://mari-settings.stack.svc.cluster.local",
+      "url_env": "MARI_SETTINGS_URL",
+      "grant_secret_env": "MARI_APP_GRANT_SECRET",
+      "enabled": true,
+      "runtime": "serverless",
+      "reads": "orchiddb",
+      "methods": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "routes": [
+        "/settings/general",
+        "/settings/members",
+        "/settings/models",
+        "/settings/api-keys",
+        "/settings/audit",
+        "/settings/design",
+        "/preferences"
+      ]
+    }
+  ]
+}

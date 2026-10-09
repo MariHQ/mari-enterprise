@@ -1,0 +1,10 @@
+{
+  "name": "mari-container",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../apps/base/web/build.mjs build ..",
+    "check": "node ../../apps/base/web/build.mjs check ..",
+    "dev": "node ../../apps/base/web/build.mjs dev .."
+  }
+}

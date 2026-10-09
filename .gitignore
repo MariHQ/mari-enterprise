@@ -12,3 +12,6 @@ __pycache__/
 CODE-AUDIT.md
 .claude/handoffs/
 .claude/RESUME.md
+
+.env.*
+!.env.example

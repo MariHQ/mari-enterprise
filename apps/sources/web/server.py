@@ -1,72 +1,29 @@
-"""Sources web backend. Read-only, independently deployable on Knative."""
+"""Sources-specific read routes; hosting and authentication come from Mari's base."""
 import asyncio
-import base64
-import hashlib
-import hmac
 import json
-import os
-import time
 from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException
+from apps.sdk.runtime import authenticated, create_app, Manifest
 
-import httpx
-import yaml
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
-
-app = FastAPI(title='Mari Sources')
-MANIFEST = Path(os.getenv('MARI_APP_MANIFEST', str(Path(__file__).parent.parent / 'mari.yaml')))
-TOPICS = tuple(yaml.safe_load(MANIFEST.read_text())['reads']['topics'])
+manifest = Manifest(name='sources')
+TOPICS = ('mari.records.temporal.temporal_connector', 'mari.records.temporal.webhook_connector')
+router = APIRouter()
 QUERY = '''MATCH (r:Record)
-WHERE r.source = $source AND r.kind = $kind AND r.record_id > $after
+WHERE r.project_id = $project AND r.source = $source AND r.kind = $kind AND r.record_id > $after
 RETURN r.record_id AS id, r.properties AS properties, r.observed_at AS observed_at
 ORDER BY r.record_id LIMIT 101'''
 
 
-def authenticated(authorization: str = Header(default='')):
+@router.get('/status')
+async def status(claims=Depends(authenticated)):
+    from apps.sdk.orchid import query_pages
+    parameters = [{'project': claims['project'], 'after': '', 'source': 'temporal',
+                   'kind': topic.rsplit('.', 1)[1]} for topic in TOPICS]
     try:
-        token = authorization.removeprefix('Bearer ')
-        body, sig = token.split('.')
-        secret = os.environ['MARI_APP_GRANT_SECRET']
-        if len(secret) < 32:
-            raise ValueError()
-        expected = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected):
-            raise ValueError()
-        claims = json.loads(base64.urlsafe_b64decode(body + '=' * (-len(body) % 4)))
-        now = time.time()
-        if claims['aud'] != 'sources' or claims['project'] != os.getenv('MARI_KNOWLEDGE_PROJECT_ID', '1') or not claims['sub'] or not now < claims['exp'] <= now + 300:
-            raise ValueError()
-        return claims
-    except (KeyError, ValueError, TypeError):
-        raise HTTPException(401, 'Open Sources from Mari to sign in') from None
-
-
-@app.get('/healthz')
-def health():
-    return {'app': 'sources', 'read_only': True}
-
-
-@app.get('/api/status', dependencies=[Depends(authenticated)])
-async def status():
-    url = os.environ.get('KNOWLEDGE_API_URL', '').rstrip('/')
-    token = os.environ.get('MARI_SERVICE_TOKEN', '')
-    if not url or not token:
-        raise HTTPException(503, 'Knowledge API binding is missing')
-    async with httpx.AsyncClient(timeout=35, headers={'Authorization': 'Bearer ' + token}) as client:
-        async def read(topic):
-            response = await client.post(url + '/api/query', json={
-                'language': 'cypher', 'table': topic, 'query': QUERY,
-                'parameters': {'after': '', 'source': 'temporal', 'kind': topic.rsplit('.', 1)[1]}, 'limit': 101,
-            })
-            if response.is_error:
-                if response.status_code == 400:
-                    raise HTTPException(502, 'Source configuration query was rejected by the Knowledge API')
-                raise HTTPException(503, 'Knowledge API could not read source configuration')
-            return response.json()['rows']
-        try:
-            pages = await asyncio.gather(*(read(topic) for topic in TOPICS))
-        except httpx.RequestError:
-            raise HTTPException(503, 'Knowledge API unavailable') from None
+        pages = await asyncio.to_thread(query_pages, QUERY, parameters)
+    except Exception:
+        # Do not expose catalog URLs, physical SQL, or credential details.
+        raise HTTPException(503, 'Source configuration is unavailable from OrchidDB') from None
     sources, warnings = [], []
     for topic, rows in zip(TOPICS, pages):
         if len(rows) > 100:
@@ -98,14 +55,4 @@ async def status():
     return {'sources': sources, 'warnings': warnings}
 
 
-static = Path(os.getenv('MARI_STATIC_DIR', str(Path(__file__).parent / 'dist'))).resolve()
-
-
-@app.get('/{path:path}', include_in_schema=False)
-def web(path: str):
-    target = (static / path).resolve()
-    if not target.is_relative_to(static) or not target.is_file():
-        target = static / 'index.html'
-    if not target.is_file():
-        raise HTTPException(503, 'Sources web build is missing')
-    return FileResponse(target)
+app = create_app(manifest, router, Path(__file__).parent/'dist')

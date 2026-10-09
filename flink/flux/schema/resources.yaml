@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mari-ingestion-schema
+  namespace: stack
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+      - name: schema
+        image: mari-ingestion:local
+        command:
+        - java
+        - -cp
+        - /opt/flink/usrlib/*:/opt/flink/lib/*
+        - local.mari.SchemaApply
+        - /opt/flink/conf/ingestion.yaml
+        - --apply
+        envFrom:
+        - secretRef:
+            name: aws-credentials
+        env:
+        - name: POLARIS_URI
+          value: http://polaris:8181/api/catalog
+        - name: POLARIS_CREDENTIAL
+          valueFrom:
+            secretKeyRef:
+              name: polaris
+              key: credential
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi

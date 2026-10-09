@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../base/web/build.mjs build ..",
+    "check": "node ../../base/web/build.mjs check ..",
+    "dev": "node ../../base/web/build.mjs dev .."
+  }
+}

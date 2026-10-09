@@ -1,4 +1,4 @@
-# General exclusions; platform images build from the parent workspace.
+# General exclusions; Temporal images build from the parent workspace.
 
 # Not needed in application images
 .git/

@@ -1,0 +1,766 @@
+# Generated from flink/ingestion.yaml by schema.sh --render-topics; do not edit.
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.document
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.document
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.fact
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.fact
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.decision
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.decision
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.edge
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.edge
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.review
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.review
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.finding
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.finding
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.answer
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.answer
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.collection
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.collection
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.principal
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.change
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.change
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.destination
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.destination
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.project
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.project
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.configuration
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.configuration
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.model-provider
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.model_provider
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.model
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.model
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.service-principal
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.service_principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.preferences
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.preferences
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.mari.presentation
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.mari.presentation
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.substrate.trajectory
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.substrate.trajectory
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.substrate.step
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.substrate.step
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.ax.trajectory
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.ax.trajectory
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.ax.step
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.ax.step
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.ax.workflow
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.ax.workflow
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.ax.principal
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.ax.principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.ax.edge
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.ax.edge
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.fact
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.fact
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.decision
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.decision
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.answer
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.answer
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.trajectory
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.trajectory
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.step
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.step
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.workflow
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.workflow
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.agent.mining-receipt
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.agent.mining_receipt
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-connector
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_connector
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.webhook-connector
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.webhook_connector
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-workflow
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_workflow
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-run
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_run
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-activity
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_activity
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-schedule
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_schedule
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.temporal-observation
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.temporal_observation
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.temporal.edge
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.temporal.edge
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.issue
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.issue
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.pull-request
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.pull_request
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.file
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.file
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.comment
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.comment
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.document
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.document
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.collection
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.collection
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.github.principal
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.github.principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.slack.message
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.slack.message
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.slack.thread
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.slack.thread
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.slack.collection
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.slack.collection
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: mari.records.slack.principal
+  namespace: stack
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  topicName: mari.records.slack.principal
+  partitions: 1
+  replicas: 1
+  config:
+    cleanup.policy: delete
+    retention.ms: -1

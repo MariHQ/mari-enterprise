@@ -1,5 +1,0 @@
--c ../constraints.txt
-httpx
-confluent-kafka
-pydantic
-weaviate-client

@@ -1,0 +1,71 @@
+# Staged only. Requires a GitRepository named mari in flux-system pointing at this repo.
+# Resolve local image tags before explicitly activating these suspended stages.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mari-topics
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 5m
+  path: ./flux/topics
+  sourceRef:
+    kind: GitRepository
+    name: mari
+  prune: false
+  wait: true
+  timeout: 5m
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mari-schema
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 5m
+  path: ./flink/flux/schema
+  sourceRef:
+    kind: GitRepository
+    name: mari
+  dependsOn:
+  - name: mari-topics
+  prune: false
+  wait: true
+  timeout: 10m
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mari-apps
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 5m
+  path: ./flux/apps
+  sourceRef:
+    kind: GitRepository
+    name: mari
+  dependsOn:
+  - name: mari-schema
+  prune: false
+  wait: true
+  timeout: 10m
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: mari-ingestion
+  namespace: flux-system
+spec:
+  suspend: true
+  interval: 5m
+  path: ./flink/flux/job
+  sourceRef:
+    kind: GitRepository
+    name: mari
+  dependsOn:
+  - name: mari-apps
+  prune: false
+  wait: true
+  timeout: 10m

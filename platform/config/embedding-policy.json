@@ -1,7 +1,0 @@
-{
-  "sources": {
-    "slack": {"kinds": ["document"], "chunking": "none", "max_characters": 8000},
-    "github": {"kinds": ["document"], "chunking": "paragraphs", "max_characters": 8000},
-    "mari": {"kinds": ["document"], "chunking": "paragraphs", "max_characters": 8000}
-  }
-}

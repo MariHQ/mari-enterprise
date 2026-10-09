@@ -1,6 +1,0 @@
-version: 0.8
-cluster_id: mari
-node_id: local
-listen_address: 0.0.0.0
-data_dir: /quickwit/qwdata
-metastore_uri: file:///quickwit/qwdata/indexes

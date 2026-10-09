@@ -1,0 +1,79 @@
+version: 1
+# Source of truth for topics, physical schemas, equality keys and identity partitions.
+# Changes are checked against existing tables; incompatible changes are refused.
+topics:
+  - mari.records.mari.document
+  - mari.records.mari.fact
+  - mari.records.mari.decision
+  - mari.records.mari.edge
+  - mari.records.mari.review
+  - mari.records.mari.finding
+  - mari.records.mari.answer
+  - mari.records.mari.collection
+  - mari.records.mari.principal
+  - mari.records.mari.change
+  - mari.records.mari.destination
+  - mari.records.mari.project
+  - mari.records.mari.configuration
+  - mari.records.mari.model_provider
+  - mari.records.mari.model
+  - mari.records.mari.service_principal
+  - mari.records.mari.preferences
+  - mari.records.mari.presentation
+  - mari.records.substrate.trajectory
+  - mari.records.substrate.step
+  - mari.records.ax.trajectory
+  - mari.records.ax.step
+  - mari.records.ax.workflow
+  - mari.records.ax.principal
+  - mari.records.ax.edge
+  - mari.records.agent.fact
+  - mari.records.agent.decision
+  - mari.records.agent.answer
+  - mari.records.agent.trajectory
+  - mari.records.agent.step
+  - mari.records.agent.workflow
+  - mari.records.agent.mining_receipt
+  - mari.records.temporal.temporal_connector
+  - mari.records.temporal.webhook_connector
+  - mari.records.temporal.temporal_workflow
+  - mari.records.temporal.temporal_run
+  - mari.records.temporal.temporal_activity
+  - mari.records.temporal.temporal_schedule
+  - mari.records.temporal.temporal_observation
+  - mari.records.temporal.edge
+  - mari.records.github.issue
+  - mari.records.github.pull_request
+  - mari.records.github.file
+  - mari.records.github.comment
+  - mari.records.github.document
+  - mari.records.github.collection
+  - mari.records.github.principal
+  - mari.records.slack.message
+  - mari.records.slack.thread
+  - mari.records.slack.collection
+  - mari.records.slack.principal
+schema:
+  - {id: 1, name: project_id, type: string, required: true}
+  - {id: 2, name: record_id, type: string, required: true}
+  - {id: 3, name: event_id, type: string, required: true}
+  - {id: 4, name: operation, type: string, required: true}
+  - {id: 5, name: kind, type: string, required: true}
+  - {id: 6, name: source, type: string, required: true}
+  - {id: 7, name: title, type: string, required: false}
+  - {id: 8, name: text, type: string, required: false}
+  - {id: 9, name: url, type: string, required: false}
+  - {id: 10, name: properties, type: string, required: false}
+  - {id: 11, name: actor, type: string, required: false}
+  - {id: 12, name: observed_at, type: long, required: true}
+  - {id: 13, name: kafka_partition, type: int, required: true}
+  - {id: 14, name: kafka_offset, type: long, required: true}
+targets:
+  current:
+    namespace: mari_streams
+    primary_key: [project_id, record_id]
+    partition_keys: [project_id]
+  history:
+    namespace: mari_history
+    primary_key: [project_id, record_id, event_id]
+    partition_keys: [project_id]

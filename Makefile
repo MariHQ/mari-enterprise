@@ -12,11 +12,12 @@ test-components:
 	done
 
 test-web:
-	npm --prefix web run check
+	@set -e; for app in $$(node -e 'const c=require("./container/apps.json"); console.log(c.apps.map(a=>"apps/"+a.id).concat("container").join(" "))'); do \
+	  node apps/base/web/build.mjs check "$$app"; \
+	done
 
 check:
-	$(PYTHON) -m compileall -q platform
-	kubectl kustomize platform/deploy/operators >/dev/null
-	kubectl kustomize platform/deploy/infrastructure >/dev/null
-	kubectl kustomize platform/deploy/streaming >/dev/null
-	kubectl kustomize platform/deploy/apps >/dev/null
+	$(PYTHON) -m compileall -q temporal container apps/sdk apps/base apps/sources/web/server.py
+	$(PYTHON) -m unittest discover -s temporal/tests -v
+	$(PYTHON) -m unittest discover -s container/tests -v
+	$(PYTHON) -m unittest discover -s apps/base/tests -v

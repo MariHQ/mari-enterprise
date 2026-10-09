@@ -1,0 +1,5 @@
+# Same embedded data runtime as all Mari apps, plus worker-only dependencies.
+-r ../apps/base/requirements.txt
+boto3==1.38.23
+grpcio==1.76.0
+protobuf>=6.31.1,<7

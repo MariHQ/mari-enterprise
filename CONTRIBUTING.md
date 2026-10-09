@@ -42,13 +42,13 @@ or fix a whole branch with `git rebase --signoff origin/main`, then force-push.
 
 ## Getting set up
 
-Follow the [Flux platform guide](platform/README.md#build-and-flux). Mari's
-application server reads the Knowledge API and publishes changes to Kafka;
+Follow the [Temporal worker guide](temporal/README.md). Mari's
+apps and workers read embedded OrchidDB and publishes changes to Kafka;
 it must never connect to PostgreSQL. PostgreSQL backing Temporal and catalog
 metadata is owned by those infrastructure services.
 
-The web application lives in `web/`; its presentation library is the
-`vendor/mari-design` submodule. Keep credentials in the ignored platform `.env`.
+Frontends live in `container/web/` and `apps/<id>/web/`; their presentation library is the
+`vendor/mari-design` submodule. Keep credentials in the ignored `temporal/.env`.
 
 ## Before you open a pull request
 
@@ -56,19 +56,19 @@ From this repository:
 
 ```sh
 make test-components
-npm --prefix web run check
-npm --prefix web run build
+make test-web
+node apps/base/web/build.mjs build apps/sources # or the changed app / container
 make check
 ```
 
-The platform environment and live verification commands are documented in
-[platform/README.md](platform/README.md). Test meaningful changes at their service
+Worker configuration is documented in
+[temporal/README.md](temporal/README.md). Test meaningful changes at their service
 boundary, including failures, duplicate delivery, and retractions where relevant.
 
 ## What we look for in a change
 
 - Keep the Mari application free of database connections and local record storage.
-- Publish normalized knowledge changes to Kafka; read through the Knowledge API.
+- Publish normalized knowledge changes to Kafka; read through embedded OrchidDB.
 - Keep UI presentation changes in the shared component library.
 - Map real API responses; missing graph mappings and failed queries must remain explicit.
 - Keep ingestion incremental and preserve stable event identities across retries.
@@ -76,9 +76,9 @@ boundary, including failures, duplicate delivery, and retractions where relevant
 
 ## Adding a connector
 
-Use the normalized ingestion contracts in `platform/knowledge/records.py` and
-the signed webhook and Temporal polling paths in `platform/runtime/`.
-Exercise signature validation, replay handling, cursor advancement, and retractions.
+Use the normalized ingestion contracts in `apps/sdk/data/records.py` and
+Temporal polling in `temporal/`. Webhook handling has been removed.
+Exercise retry handling, cursor advancement, and retractions.
 
 ## Commit messages
 

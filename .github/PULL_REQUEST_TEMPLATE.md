@@ -9,8 +9,8 @@
 ## Checklist
 
 - [ ] All commits are signed off (`git commit -s`), agreeing to the [CLA](../CLA.md)
-- [ ] `npm run check` and `npm run build` pass in `web/` (if the console changed)
-- [ ] Mari reads through the Knowledge API and writes through Kafka, with no PostgreSQL connection
-- [ ] Visual changes went to the [mari-design](https://github.com/MariHQ/mari-design) library, not `web/`
-- [ ] Page adapters map API responses only — no values invented in `web/src/data/`
+- [ ] `make test-web` and the changed app’s shared frontend build pass (if the UI changed)
+- [ ] Mari reads through embedded OrchidDB and writes through Kafka, with no PostgreSQL connection
+- [ ] Visual changes went to the [mari-design](https://github.com/MariHQ/mari-design) library, with app adapters in `apps/<id>/web/src/`
+- [ ] Page adapters map API responses only — no values invented in app adapters
 - [ ] No credentials, tokens, or canned/placeholder data added

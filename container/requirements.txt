@@ -1,0 +1,2 @@
+# All Mari HTTP images share this dependency set.
+-r ../apps/base/requirements.txt
