@@ -128,12 +128,12 @@ class IcebergDeleteTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'equality field ID'):
             manifest_source(self.table)
 
-    def test_summary_routes_mixed_deletes_to_manifest_reader(self):
-        with patch('apps.sdk.iceberg_files.manifest_source', return_value='(SELECT 1)') as reader:
-            self.assertEqual(snapshot_source(self.table), '(SELECT 1)')
-            reader.assert_called_once_with(self.table, self.snapshot)
-        self.summary['total-position-deletes'] = '0'
-        self.assertEqual(snapshot_source(self.table), "iceberg_scan('/unused/metadata.json')")
+    def test_optional_summary_cannot_bypass_delete_handling(self):
+        for summary in [self.summary, {'total-position-deletes':'0'}, {}, None]:
+            self.snapshot.summary = summary
+            with patch('apps.sdk.iceberg_files.manifest_source', return_value='(SELECT 1)') as reader:
+                self.assertEqual(snapshot_source(self.table), '(SELECT 1)')
+                reader.assert_called_once_with(self.table, self.snapshot)
 
 
 if __name__ == '__main__':

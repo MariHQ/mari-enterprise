@@ -12,7 +12,7 @@ import pyarrow.parquet as pq
 
 MARI=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(MARI))
-from apps.sdk.catalog_lake import bind,LazyViews
+from apps.sdk.catalog_lake import bind,LazyViews,literal
 from apps.sdk.provision import definitions,topics,table_name
 
 class BindingsTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class BindingsTests(unittest.TestCase):
             database=duckdb.connect()
             class LocalFiles:
                 def execute(self,sql):return database.execute(sql.replace('iceberg_scan(', 'read_parquet('))
-            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])):
+            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])), patch('apps.sdk.catalog_lake.snapshot_source',side_effect=lambda table:'read_parquet('+literal(table.metadata_location)+')'):
                 views=LazyViews(LocalFiles());bind(views,{'objects':objects},'1')
                 for name in views.statements:views.ensure(name)
             self.assertEqual(database.execute('SELECT record_id,title FROM graph_records ORDER BY record_id').fetchall(),[('a','new'),('b','evidence')])
@@ -42,7 +42,7 @@ class BindingsTests(unittest.TestCase):
             physical=[d for d in definitions(tables).values() if 'iceberg' in d]
             self.assertEqual(len(physical),2)
             self.assertTrue(all(len(d['columns'])==14 for d in physical))
-            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])):
+            with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda key:tables[key])), patch('apps.sdk.catalog_lake.snapshot_source',side_effect=lambda table:'read_parquet('+literal(table.metadata_location)+')'):
                 current=LazyViews(database)
                 bind(current,{'objects':objects},'1',namespace_filter='mari_streams')
                 self.assertIn('graph_records',current.statements)

@@ -161,7 +161,7 @@ class CatalogLake:
             temporary=tempfile.TemporaryDirectory(prefix='mari-lake-')
             database=duckdb.connect(config={'temp_directory':temporary.name,'max_temp_directory_size':'1GB','memory_limit':'512MB','threads':4,'extension_directory':os.getenv('DUCKDB_EXTENSION_DIRECTORY',os.path.expanduser('~/.duckdb/extensions'))})
             database.execute("CREATE SECRET mari_s3 (TYPE s3, PROVIDER credential_chain)")
-            database.execute("LOAD iceberg; SET enable_http_metadata_cache=true; SET parquet_metadata_cache=true; SET disabled_optimizers='statistics_propagation'")
+            database.execute("SET enable_http_metadata_cache=true; SET parquet_metadata_cache=true")
             prepared=set()
             objects=manifest['objects']
             definitions=objects.values() if isinstance(objects,dict) else objects

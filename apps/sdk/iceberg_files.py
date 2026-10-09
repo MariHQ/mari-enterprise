@@ -1,8 +1,8 @@
-"""Read Mari's fixed Iceberg v2 schema when DuckDB cannot combine delete types.
+"""Read Mari's fixed Iceberg v2 schema from one pinned manifest snapshot.
 
-The ordinary Iceberg extension remains the reader unless a snapshot contains both
-position and equality deletes. Pin manifests to the loaded snapshot and apply v2
-sequence/partition rules before any app predicate, aggregation, or limit.
+Apply equality/position deletes by sequence and partition before app queries.
+DuckDB reads each Parquet file once; snapshot summaries are optional and never
+used to decide whether delete semantics apply.
 """
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
@@ -21,9 +21,9 @@ def identifier(value):
 
 def snapshot_source(table):
     snapshot = table.current_snapshot()
-    summary = snapshot.summary if snapshot else None
-    if not summary or not (int(summary.get('total-position-deletes', '0')) and int(summary.get('total-equality-deletes', '0'))):
-        return 'iceberg_scan(' + literal(table.metadata_location) + ')'
+    if snapshot is None:
+        # bind() replaces fresh tables with their published empty typed schema.
+        return None
     return manifest_source(table, snapshot)
 
 
@@ -31,17 +31,17 @@ def manifest_source(table, snapshot=None):
     """Narrow, fail-closed adapter for the schema created by Mari SchemaApply."""
     snapshot = snapshot or table.current_snapshot()
     if table.metadata.format_version != 2 or len(table.metadata.schemas) != 1:
-        raise ValueError('Mixed-delete reads require Mari Iceberg v2 without schema evolution')
+        raise ValueError('Mari lake reads require Mari Iceberg v2 without schema evolution')
     schema = table.schema()
     fields = {field.field_id: field for field in schema.fields}
     if any(str(field.field_type) not in ('string', 'long', 'int') for field in fields.values()):
-        raise ValueError('Unsupported mixed-delete field type')
+        raise ValueError('Unsupported Mari lake field type')
     specs = table.specs()
     if len(specs) != 1:
-        raise ValueError('Mixed-delete reads do not support partition spec evolution')
+        raise ValueError('Mari lake reads do not support partition spec evolution')
     for spec in specs.values():
         if any(not isinstance(f.transform, IdentityTransform) or f.source_id not in fields for f in spec.fields):
-            raise ValueError('Mixed-delete reads require identity partitions')
+            raise ValueError('Mari lake reads require identity partitions')
     manifests = list(snapshot.manifests(table.io))
     with ThreadPoolExecutor(max_workers=4) as pool:
         entries = [entry for batch in pool.map(lambda m: m.fetch_manifest_entry(table.io, discard_deleted=True), manifests) for entry in batch]

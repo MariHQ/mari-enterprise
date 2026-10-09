@@ -10,7 +10,7 @@ const drafts = new Map<string, RecordData>();
 const recordTables = new Map<string, string>();
 const refresh = () => window.dispatchEvent(new Event('mari:knowledge-change'));
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await authenticatedFetch(path, { signal: AbortSignal.timeout(40000), ...init, headers: { 'Content-Type': 'application/json', ...projectHeaders(), ...init?.headers } });
+  const response = await authenticatedFetch(path, { signal: AbortSignal.timeout(125000), ...init, headers: { 'Content-Type': 'application/json', ...projectHeaders(), ...init?.headers } });
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`);
   return data as T;
@@ -18,23 +18,28 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export function useRead<T>(path: string | null) {
   const [state, setState] = useState<{data:T|null;loading:boolean;error:string|null}>({data:null,loading:true,error:null});
   useEffect(() => {
-    let active = true; let generation=0;
+    let active = true; let generation=0; let inFlight=false; let refreshQueued=false;
+    let controller:AbortController|null=null;
     const load = () => {
+      if(!active)return;
+      if(inFlight){refreshQueued=true;return;}
       const requestGeneration=++generation;
       if (!path) { setState({data:null,loading:false,error:null}); return; }
-      request<T>(path).then(data => {
+      inFlight=true; controller=new AbortController();
+      request<T>(path,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(125000)])}).then(data => {
         if(active && requestGeneration===generation) {
           const rows=(data as {records?:RecordData[]})?.records ?? [];
           for(const row of rows)if(pending.get(row.record_id)===row.event_id){pending.delete(row.record_id);drafts.delete(row.record_id);}
           setState({data,loading:false,error:null});
         }
       })
-        .catch(error => { if(active && requestGeneration===generation) setState(s=>({...s,loading:false,error:error.message})); });
+        .catch(error => { if(active && requestGeneration===generation) setState(s=>({...s,loading:false,error:error.message})); })
+        .finally(()=>{inFlight=false;if(active && refreshQueued){refreshQueued=false;load();}});
     };
     setState({data:null,loading:true,error:null}); load();
-    const timer = window.setInterval(() => { if(pending.size) load(); },3000);
+    const timer = window.setInterval(() => { if(pending.size && !inFlight) load(); },3000);
     window.addEventListener('mari:knowledge-change',load);
-    return () => { active=false; clearInterval(timer); window.removeEventListener('mari:knowledge-change',load); };
+    return () => { active=false; controller?.abort(); clearInterval(timer); window.removeEventListener('mari:knowledge-change',load); };
   },[path]);
   return state;
 }

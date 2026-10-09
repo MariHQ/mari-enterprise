@@ -30,7 +30,7 @@ for obj in objects.values():
 db=duckdb.connect()
 class LocalFiles:
  def execute(self,q):return db.execute(q.replace('iceberg_scan(', 'read_parquet('))
-with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda _:table)):
+with patch('pyiceberg.catalog.load_catalog',return_value=SimpleNamespace(load_table=lambda _:table)), patch('apps.sdk.catalog_lake.snapshot_source',return_value="read_parquet('/tmp/records.parquet')"):
  views=LazyViews(LocalFiles());bind(views,{'objects':objects},'1')
  for name in views.statements:views.ensure(name)
 class CheckedEngine(DuckDBEngine):
