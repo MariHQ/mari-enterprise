@@ -2,6 +2,7 @@
 from apps.sdk.data import reader
 from apps.sdk.graph import projection, DOCUMENTS
 
+@reader.graph_snapshot
 def read(kinds,metrics=False):
     rows=reader.execute('MATCH (r:Record) WHERE r.kind IN $kinds RETURN '+projection()+' ORDER BY r.observed_at DESC,r.record_id LIMIT 101',{'kinds':kinds},limit=101)['rows']
     records=[reader.hydrate(r) for r in rows[:100]]
