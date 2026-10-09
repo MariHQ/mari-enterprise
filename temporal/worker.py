@@ -12,6 +12,7 @@ from apps.sdk.data.records import KnowledgeChange, command_id
 from apps.sdk.data.mappings import topic_for
 from apps.sdk.data.ingestion import publish_changes
 from .evidence import search_evidence, current_evidence, query_records
+from apps.sdk.graph import projection
 from .workflows import MineKnowledge, SourceSync
 from .observability import ObserveTemporal, observe_temporal
 from .discovery import DiscoverSlack, discover_slack
@@ -25,21 +26,19 @@ async def retrieve(request: dict):
     return await search_evidence(request["query"])
 
 
-UNMINED_SQL = """SELECT r.* FROM records r
-WHERE NOT list_contains($seen,r.event_id) AND r.source IN ('slack','github') AND r.kind <> 'edge' AND r.text <> ''
-AND NOT EXISTS (
- SELECT 1 FROM mining_receipts receipt WHERE receipt.kind='mining_receipt'
- AND receipt.source='agent'
- AND json_extract_string(receipt.properties,'$.miner_version')='decisions-extract-v2'
- AND json_extract_string(receipt.properties,'$.source_id')=r.record_id
- AND json_extract_string(receipt.properties,'$.source_revision')=r.event_id
-)
-ORDER BY r.observed_at, r.record_id LIMIT 20"""
+UNMINED_CYPHER = """MATCH (r:Record)
+WHERE NOT r.event_id IN $seen AND r.source IN ['slack','github'] AND r.kind <> 'edge' AND r.text <> ''
+AND NOT EXISTS {
+ MATCH (receipt:MiningReceipt) WHERE receipt.source='agent'
+ AND receipt.miner_version='decisions-extract-v2' AND receipt.source_id=r.record_id AND receipt.source_revision=r.event_id
+}
+RETURN """+projection()+" ORDER BY r.observed_at,r.record_id LIMIT 20"
+
 
 
 @activity.defn
 async def retrieve_unmined(request: dict):
-    return await query_records(UNMINED_SQL, {'seen':request.get('seen',[])}, limit=20)
+    return await query_records(UNMINED_CYPHER, {'seen':request.get('seen',[])}, limit=20)
 
 
 @activity.defn

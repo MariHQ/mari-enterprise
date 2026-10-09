@@ -9,6 +9,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from .records import hydrate
+from apps.sdk.graph import projection, page_limit, DOCUMENTS
+from functools import wraps
 
 router=APIRouter()
 from apps.sdk.catalog_lake import CatalogLake
@@ -16,14 +18,14 @@ engine=CatalogLake()
 
 
 class QueryInput(BaseModel):
-    language: Literal['sql','cypher','gremlin','sparql']='sql'
+    language: Literal['cypher']='cypher'
     query: str=Field(min_length=1,max_length=20000)
     parameters: dict[str,Any]=Field(default_factory=dict)
     limit: int=Field(default=1000,ge=1,le=1000)
     table: str | None = Field(default=None, min_length=1, max_length=249, pattern=r'^[a-zA-Z0-9._-]+$')
 
 
-def execute(query,parameters=None,language='sql',limit=1000,table=None):
+def execute(query,parameters=None,language='cypher',limit=1000,table=None):
     try:
         return engine.execute(query,parameters,language,os.getenv('MARI_KNOWLEDGE_PROJECT_ID','1'),limit,physical_table=table)
     except ValueError as error:
@@ -31,6 +33,15 @@ def execute(query,parameters=None,language='sql',limit=1000,table=None):
     except Exception:
         logging.exception('Knowledge query failed')
         raise HTTPException(503,'Knowledge query unavailable; no stale local copy was returned') from None
+
+
+def graph_snapshot(function):
+    """Keep bounded multi-step graph reads on one resolved catalog and lake snapshot."""
+    @wraps(function)
+    def wrapped(*args,**kwargs):
+        with engine.session(os.getenv('MARI_KNOWLEDGE_PROJECT_ID','1')):
+            return function(*args,**kwargs)
+    return wrapped
 
 
 @router.post('/api/query')
@@ -47,12 +58,11 @@ def records(q:str=Query('',max_length=500),limit:int=Query(100,ge=1,le=1000),cur
             status:list[str]=Query([]),content_type:list[str]=Query([]),days:int|None=Query(None,ge=1,le=36500),
             sort:Literal['newest','title']='newest'):
     if q.strip() not in ('','*'):raise HTTPException(409,SEARCH_REQUIREMENT)
-    type_expr="CASE WHEN kind IN ('pr','pull_request') THEN 'Pull requests' WHEN kind IN ('message','thread','slack_message') THEN 'Conversations' ELSE 'Documents' END"
-    where="source <> 'temporal' AND kind NOT IN ('edge','workflow','mining_receipt') AND ($kind IS NULL OR kind=$kind) AND (len($sources)=0 OR list_contains($sources,lower(split_part(source,':',1)))) AND (len($owners)=0 OR list_contains($owners,coalesce(nullif(actor,''),'Unknown owner'))) AND (len($statuses)=0 OR list_contains($statuses, json_extract_string(properties,'status'))) AND (len($types)=0 OR list_contains($types,"+type_expr+")) AND ($since IS NULL OR observed_at >= $since)"
+    where=DOCUMENTS+" AND r.kind <> 'edge' AND ($kind IS NULL OR r.kind=$kind) AND (size($sources)=0 OR r.source_group IN $sources) AND (size($owners)=0 OR r.owner_name IN $owners) AND (size($statuses)=0 OR r.status IN $statuses) AND (size($types)=0 OR r.content_type IN $types) AND ($since IS NULL OR r.observed_at >= $since)"
     signature=hashlib.sha256(json.dumps([kind,source,owner,status,content_type,days,sort],sort_keys=True).encode()).hexdigest()
     since=int(time.time())-days*86400 if days else None
     params={'kind':kind,'sources':source,'owners':owner,'statuses':status,'types':content_type}
-    key="coalesce(lower(title),'')" if sort=='title' else 'observed_at'
+    key="coalesce(toLower(r.title),'')" if sort=='title' else 'r.observed_at'
     if cursor:
         try:
             position=json.loads(base64.urlsafe_b64decode(cursor+'='*(-len(cursor)%4)))
@@ -60,14 +70,14 @@ def records(q:str=Query('',max_length=500),limit:int=Query(100,ge=1,le=1000),cur
             value=position['value'];identity=position['id'];since=position['since']
             if not isinstance(identity,str) or not isinstance(value,str if sort=='title' else int):raise ValueError()
         except (ValueError,TypeError,KeyError):raise HTTPException(400,'Invalid cursor for these filters') from None
-        where+=f" AND ({key} {'>' if sort=='title' else '<'} $position OR ({key}=$position AND record_id>$identity))"
+        where+=f" AND ({key} {'>' if sort=='title' else '<'} $position OR ({key}=$position AND r.record_id>$identity))"
         params.update(position=value,identity=identity)
     params['since']=since
-    columns="* EXCLUDE(text), substring(text,1,400) AS text" if summary else '*'
-    order=key+(' ASC' if sort=='title' else ' DESC')+', record_id'
+    columns=projection(text="substring(r.text,0,400)" if summary else None)
+    order=key+(' ASC' if sort=='title' else ' DESC')+', r.record_id'
     # A single page plus one lookahead row. No corpus count, offset scan or facet enumeration.
-    rows=execute('SELECT '+columns+' FROM records WHERE '+where+' ORDER BY '+order+' LIMIT $limit',
-                 {**params,'limit':limit+1},limit=limit+1)['rows']
+    rows=execute('MATCH (r:Record) WHERE '+where+' RETURN '+columns+' ORDER BY '+order+' LIMIT '+page_limit(limit+1),
+                 params,limit=limit+1)['rows']
     more=len(rows)>limit;rows=rows[:limit]
     next_cursor=None
     if more:
@@ -79,7 +89,7 @@ def records(q:str=Query('',max_length=500),limit:int=Query(100,ge=1,le=1000),cur
 
 @router.get('/api/records/{record_id:path}')
 def record(record_id:str):
-    rows=execute('SELECT * FROM records WHERE record_id=$id',{'id':record_id})['rows']
+    rows=execute('MATCH (r:Record) WHERE r.record_id=$id RETURN '+projection(),{'id':record_id})['rows']
     if not rows:raise HTTPException(404,'Record not found')
     return hydrate(rows[0])
 
@@ -90,10 +100,10 @@ def search(q:str=Query('*',max_length=500)):
     if q.startswith('source_id:'):
         try: identity=json.loads(q[len('source_id:'):])
         except ValueError:raise HTTPException(400,'Invalid record identity') from None
-        rows=execute('SELECT * FROM records WHERE record_id=$id',{'id':identity})['rows']
+        rows=execute('MATCH (r:Record) WHERE '+DOCUMENTS+' AND r.record_id=$id RETURN '+projection(),{'id':identity})['rows']
         return {'hits':[hydrate(row) for row in rows]}
     if q.strip() not in ('','*'):raise HTTPException(409,SEARCH_REQUIREMENT)
-    rows=execute('SELECT * FROM records ORDER BY observed_at DESC, record_id LIMIT 100')['rows']
+    rows=execute('MATCH (r:Record) WHERE '+DOCUMENTS+' RETURN '+projection()+' ORDER BY r.observed_at DESC, r.record_id LIMIT 100')['rows']
     return {'hits':[hydrate(row) for row in rows]}
 
 
@@ -105,25 +115,7 @@ class RetrievalInput(BaseModel):
 
 @router.post('/api/retrieve')
 def retrieve(body:RetrievalInput):
-    if os.getenv('WEAVIATE_ENABLED','false')!='true':
-        raise HTTPException(503,'Vector retrieval is not enabled')
-    from indexing.worker import embed,connect,collection_name
-    from weaviate.classes.query import Filter
-    try:
-        vector=embed([body.query],input_type='query')[0]
-        with connect() as client:
-            results=client.collections.get(collection_name()).query.near_vector(near_vector=vector,target_vector='content',
-                filters=Filter.by_property('project_id').equal(os.getenv('MARI_KNOWLEDGE_PROJECT_ID','1')),limit=body.limit)
-        identifiers=list(dict.fromkeys(obj.properties['record_id'] for obj in results.objects))
-        if not identifiers:return {'records':[]}
-        # Resolve records in the current lake snapshot; indexes are optional derived views.
-        rows=execute('SELECT * FROM records WHERE list_contains($ids,record_id)',{'ids':identifiers})['rows']
-        by_id={row['record_id']:row for row in rows}
-        return {'records':[hydrate(by_id[i]) for i in identifiers if i in by_id]}
-    except HTTPException:raise
-    except Exception:
-        logging.exception('Vector retrieval failed')
-        raise HTTPException(503,'Vector retrieval unavailable') from None
+    raise HTTPException(409,'GRAPH_REQUIREMENTS:Vector retrieval needs a published graph search mapping')
 
 
 @router.get('/api/telemetry/search')

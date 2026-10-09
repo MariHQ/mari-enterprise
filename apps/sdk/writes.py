@@ -27,7 +27,7 @@ class WriteInput(BaseModel):
 def publish(body:WriteInput,request_id:str,actor:str,operation='upsert'):
     if not request_id or len(request_id)>128:raise HTTPException(400,'An Idempotency-Key is required')
     if body.expected_revision:
-        rows=reader.execute('SELECT event_id FROM graph_records WHERE record_id=$id',{'id':body.record_id},table=body.table)['rows']
+        rows=reader.execute('MATCH (r:Record) WHERE r.record_id=$id RETURN r.event_id AS event_id',{'id':body.record_id},table=body.table)['rows']
         if not rows:raise HTTPException(409,'This record no longer exists')
         existing=rows[0]
         if existing['event_id']!=body.expected_revision:raise HTTPException(409,'This record changed; reload before editing')
@@ -60,7 +60,7 @@ class EdgeInput(BaseModel):
 @router.post('/api/edges',status_code=202)
 def add_edge(body:EdgeInput,actor:str=Depends(actor_identity),idempotency_key:str=Header(default='')):
     import hashlib
-    endpoints=reader.execute('SELECT record_id FROM graph_records WHERE record_id IN ($a,$b)',
+    endpoints=reader.execute('MATCH (r:Record) WHERE r.record_id IN [$a,$b] RETURN r.record_id AS record_id',
         {'a':body.from_id,'b':body.to_id})['rows']
     if {r['record_id'] for r in endpoints}!={body.from_id,body.to_id}:
         raise HTTPException(422,'Both edge endpoints must exist in the graph')

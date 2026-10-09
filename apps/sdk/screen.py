@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from apps.sdk.runtime import Manifest,create_app
 from apps.sdk.data import reader
 from apps.sdk import writes
+from apps.sdk.graph import projection
 
 def create_screen(name,routers,static_dir):
     router=APIRouter()
@@ -16,5 +17,5 @@ def create_screen(name,routers,static_dir):
     def record(id:str): return reader.record(id)
     @router.get('/api/history')
     def history(id:str,table:str):
-        return reader.execute('SELECT * FROM history WHERE record_id=$id ORDER BY stream_offset DESC LIMIT 100',{'id':id},table=table)
+        return reader.execute('MATCH (r:History) WHERE r.record_id=$id RETURN '+projection()+' ORDER BY r.stream_offset DESC LIMIT 100',{'id':id},table=table)
     return create_app(Manifest(name=name),router,static_dir,api_prefix='')

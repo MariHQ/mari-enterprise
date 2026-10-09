@@ -1,6 +1,8 @@
 """Bind catalog-declared Flink current/history tables to original Mari projections."""
 from contextlib import contextmanager
 import json
+from contextvars import ContextVar
+from apps.sdk.graph import JSON_PROPERTIES
 import os
 from threading import BoundedSemaphore, Timer
 import duckdb
@@ -51,7 +53,14 @@ def bind(database, manifest, project, physical_table=None):
             elif name=='table':value=literal(topic)
             else:value='"'+name+'"'
             columns.append(f'{value} AS "{name}"')
+        columns += [("try_cast(json_extract_string(properties,'$.ordinal') AS BIGINT)" if name=="ordinal" else "json_extract_string(properties,'$."+name+"')")+" AS \""+name+"\"" for name in JSON_PROPERTIES]
+        columns += ["lower(split_part(source,':',1)) AS source_group", "coalesce(nullif(actor,''),'Unknown owner') AS owner_name",
+                    "CASE WHEN kind IN ('pr','pull_request') THEN 'Pull requests' WHEN kind IN ('message','thread','slack_message') THEN 'Conversations' ELSE 'Documents' END AS content_type",
+                    "to_json(list_value(project_id,"+literal(topic)+",record_id,event_id))::VARCHAR AS event_key"]
         projection='SELECT '+','.join(columns)+' FROM iceberg_scan('+literal(table.metadata_location)+') WHERE project_id='+literal(project)
+        alias=definition.get('table')
+        if alias:
+            database.execute('CREATE TEMP VIEW "'+alias.replace('"','""')+'" AS '+projection)
         (history_parts if namespace==['mari_history'] else current_parts).append(projection)
     if not current_parts or not history_parts: raise ValueError('Current and history datasets must be published before app reads')
     database.execute('CREATE TEMP VIEW history AS '+ ' UNION ALL '.join(history_parts))
@@ -73,12 +82,20 @@ def bind(database, manifest, project, physical_table=None):
 
 
 class CatalogLake:
-    def __init__(self): self.slots=BoundedSemaphore(2)
-    def execute(self, query, parameters=None, language='sql', project='1', limit=1000, physical_table=None):
+    def __init__(self):
+        self.slots=BoundedSemaphore(2)
+        self.active=ContextVar('mari_graph_session',default=None)
+
+    @contextmanager
+    def session(self, project='1', physical_table=None):
+        existing=self.active.get()
+        if existing is not None:
+            if existing[0] != (project,physical_table): raise ValueError('Cannot change scope inside a graph session')
+            yield existing[1]
+            return
         if not self.slots.acquire(timeout=2): raise RuntimeError('Query capacity is busy')
-        database=None; timer=None
+        database=None; timer=None; token=None
         try:
-            if language=='sql': validate_read(query)
             manifest=catalog_manifest()
             database=duckdb.connect(config={'memory_limit':'512MB','threads':2,'extension_directory':os.getenv('DUCKDB_EXTENSION_DIRECTORY',os.path.expanduser('~/.duckdb/extensions'))})
             timer=Timer(30,database.interrupt);timer.start()
@@ -88,21 +105,31 @@ class CatalogLake:
             class ReadOnlyEngine(DuckDBEngine):
                 @contextmanager
                 def query_arrow(self, compiled, batch_size=1024):
-                    validate_read(compiled.sql)
+                    validate_read(compiled.sql, tables={table['name'] for table in manifest['schema']['tables']})
                     with super().query_arrow(compiled,batch_size) as result:
                         yield result
             with Connection(ReadOnlyEngine(database),manifest['schema']) as graph:
-                if language=='sql':
-                    result=database.execute(query,parameters or {})
-                    columns=[c[0] for c in result.description];rows=[dict(zip(columns,r)) for r in result.fetchmany(limit+1)]
-                else:
-                    with graph.query(query,parameters=parameters or {},language=language) as result:
+                def run(query,parameters=None,language='cypher',limit=1000):
+                    # SQL is restricted to internal storage bindings. Public reads use Cypher.
+                    if language!='cypher': raise ValueError('Mari reads require Cypher')
+                    with graph.query(query,parameters=parameters or {},language='cypher') as result:
                         rows=[]
                         for batch in result:
                             rows.extend(batch.to_pylist())
                             if len(rows)>limit: break
-            return {'rows':rows[:limit],'truncated':len(rows)>limit}
+                    return {'rows':rows[:limit],'truncated':len(rows)>limit}
+                token=self.active.set(((project,physical_table),run,manifest))
+                yield run
         finally:
+            if token is not None:self.active.reset(token)
             if timer:timer.cancel();timer.join()
             if database:database.close()
             self.slots.release()
+
+    def manifest(self):
+        active=self.active.get()
+        return active[2] if active is not None else catalog_manifest()
+
+    def execute(self, query, parameters=None, language='cypher', project='1', limit=1000, physical_table=None):
+        with self.session(project,physical_table) as run:
+            return run(query,parameters,language,limit)

@@ -7,6 +7,7 @@ import httpx
 from pyiceberg.catalog import load_catalog
 import yaml
 from apps.sdk.data.query import COLUMNS
+from apps.sdk.graph import JSON_PROPERTIES, RECORD_PROPERTIES, property_type
 from apps.sdk.data.relationships import REFERENCES
 from apps.sdk.catalog_config import catalog_properties
 
@@ -22,26 +23,26 @@ def ingestion_config():
 def topics(): return ingestion_config()['topics']
 def table_name(topic): return topic
 RELATIONS = sorted({'ingested','produced','authored','contains','polls','discussed','derived_from'} | {label for refs in REFERENCES.values() for _,label,_ in refs})
-NODES = {'Fact':'facts','Decision':'decisions','Connector':'connector_configurations','Workflow':'workflow_definitions','Run':'workflow_runs','Schedule':'temporal_schedules','Review':'reviews','Collection':'collections','Trajectory':'agent_trajectories','Step':'agent_steps'}
-def columns(): return [{'name':name,'data_type':'int64' if typ=='BIGINT' else 'string'} for name,typ in COLUMNS]
+NODES = {'Fact':'facts','Decision':'decisions','Connector':'connector_configurations','Workflow':'workflow_definitions','Run':'workflow_runs','Schedule':'temporal_schedules','Review':'reviews','Collection':'collections','Trajectory':'agent_trajectories','Step':'agent_steps','Activity':'workflow_activities','Observation':'temporal_observations','MiningReceipt':'mining_receipts','History':'history'}
+def columns(): return [{'name':name,'data_type':'int64' if typ=='BIGINT' else 'string'} for name,typ in COLUMNS] + [{'name':name,'data_type':property_type(name)} for name in RECORD_PROPERTIES if name not in dict(COLUMNS)]
 
 
 def definitions(physical):
     result={
         'polaris':{'kind':'connector','description':'Mari event lake in Polaris','adapter':'iceberg','protocol_version':1,'credential_ref':'polaris_read'},
         'records':{'kind':'dataset','description':'Latest normalized record per project, topic and identity; maintained by Flink','table':'graph_records','columns':columns(),'source_metadata':{'format':'mari_normalized_v1','options':{'topics':topics()}}},
-        'record':{'kind':'entity','description':'Mari knowledge and operational record','dataset':'records','mapping':{'label':'Record','table':'graph_records','id':'record_id','properties':{n:n for n,_ in COLUMNS}}},
-        'links':{'kind':'dataset','description':'Explicit and provenance-derived Mari relationships','table':'links','columns':[{'name':n,'data_type':'string'} for n in ('record_id','from_id','to_id','relation')]},
-        'related':{'kind':'relationship','description':'Typed provenance, evidence, review, ownership and workflow relationship','dataset':'links','source':'record','target':'record','mapping':{'label':'RELATED','table':'links','id':'record_id','source':'from_id','target':'to_id','source_label':'Record','target_label':'Record','properties':{'relation':'relation'}}},
+        'record':{'kind':'entity','description':'Mari knowledge and operational record','dataset':'records','mapping':{'label':'Record','table':'graph_records','id':'record_id','properties':{n:n for n in RECORD_PROPERTIES}}},
+        'links':{'kind':'dataset','description':'Explicit and provenance-derived Mari relationships','table':'links','columns':[{'name':n,'data_type':'string'} for n in ('record_id','from_id','to_id','relation')]+[{'name':'observed_at','data_type':'int64'}]},
+        'related':{'kind':'relationship','description':'Typed provenance, evidence, review, ownership and workflow relationship','dataset':'links','source':'record','target':'record','mapping':{'label':'RELATED','table':'links','id':'record_id','source':'from_id','target':'to_id','source_label':'Record','target_label':'Record','properties':{n:n for n in ('record_id','from_id','to_id','relation','observed_at')}}},
     }
     for label,view in NODES.items():
         name='node_'+label.lower()
         result[name+'_data']={'kind':'dataset','description':label+' records from the normalized event lake','table':view,'columns':columns()}
-        result[name]={'kind':'entity','description':label,'dataset':name+'_data','mapping':{'label':label,'table':view,'id':'record_id','properties':{n:n for n,_ in COLUMNS}}}
+        result[name]={'kind':'entity','description':label,'dataset':name+'_data','mapping':{'label':label,'table':view,'id':'event_key' if label=='History' else 'record_id','properties':{n:n for n in RECORD_PROPERTIES}}}
     for relation in RELATIONS:
         name='edge_'+relation
-        result[name+'_data']={'kind':'dataset','description':relation+' relationships','table':name,'columns':[{'name':n,'data_type':'string'} for n in ('record_id','from_id','to_id','relation')]}
-        result[name]={'kind':'relationship','description':relation,'dataset':name+'_data','source':'record','target':'record','mapping':{'label':relation,'table':name,'id':'record_id','source':'from_id','target':'to_id','source_label':'Record','target_label':'Record','properties':{'relation':'relation'}}}
+        result[name+'_data']={'kind':'dataset','description':relation+' relationships','table':name,'columns':[{'name':n,'data_type':'string'} for n in ('record_id','from_id','to_id','relation')]+[{'name':'observed_at','data_type':'int64'}]}
+        result[name]={'kind':'relationship','description':relation,'dataset':name+'_data','source':'record','target':'record','mapping':{'label':relation,'table':name,'id':'record_id','source':'from_id','target':'to_id','source_label':'Record','target_label':'Record','properties':{n:n for n in ('record_id','from_id','to_id','relation','observed_at')}}}
     config=ingestion_config()
     physical_columns=[{'name':field['name'],'data_type':{'string':'string','long':'int64','int':'int32'}[field['type']],'field_id':field['id']} for field in config['schema']]
     for (namespace,topic),table in physical.items():

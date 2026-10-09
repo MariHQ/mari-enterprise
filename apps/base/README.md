@@ -59,7 +59,9 @@ schema/key/partition changes; explicit apply creates missing tables only.
 The shared registration helper reads that same YAML, loads existing physical
 Iceberg tables, and registers real table UUIDs plus Record/typed nodes and
 RELATED/typed relationships. `catalog_lake.py` binds those tables into each app's
-embedded runtime; no app reads through a separate Mari or OrchidDB engine server.
+embedded runtime. App handlers and Temporal evidence reads use Cypher; SQL remains
+inside physical Iceberg bindings and maintenance. Multi-query graph requests share
+one catalog/metadata snapshot. No separate Mari or OrchidDB engine server is used.
 No live topic, table, catalog object, or service has been created by this work.
 
 Deployments need `mari-runtime` (session/app grant secrets, public origin and
@@ -81,3 +83,13 @@ no preview fixtures or fake successful query results are used in production.
 The existing components still have their existing functional limits. In
 particular, workflow promotion, impact analysis and external destination
 provisioning are not implemented by splitting the pages into apps.
+
+Native Cypher integration check (workspace root, no network or live data):
+
+```sh
+docker run --rm --network none --entrypoint python \
+  -e MARI_INGESTION_CONFIG=/workspace/flink/ingestion.yaml \
+  -e PYTHONPATH=/workspace:/kit \
+  -v "$PWD/mari:/workspace:ro" -v "$PWD/mari-kit/src:/kit:ro" \
+  mari-app-base:local /workspace/apps/base/tests/check_cypher.py
+```

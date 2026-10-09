@@ -4,6 +4,7 @@ import { groupKindWord, groupParts, type LEdge, type LNode, type Lens, type Layo
 
 type Res = {
   lineage: {
+    parameters?: LNode["parameters"];
     id: string; docId: number | string; source: string; title: string; meta: string; icon: string;
     x: number; y: number; pinned: boolean; date: string; createdDate: string; warn: boolean;
     owner: string; tags: string[]; staleDays: number; orphan: boolean;
@@ -145,20 +146,8 @@ const DOC_KINDS = new Set<LNode["docKind"]>([
   "page", "commit", "pr", "issue", "answer", "decision", "seed",
 ]);
 
-const REL: Record<string, LEdge["rel"]> = {
-  references: "references",
-  reference: "references",
-  links_to: "references",
-  discussed: "discussed",
-  derived: "derived",
-  translates: "translates",
-  contradicts: "contradicts",
-  similar: "similar",
-};
-
 export function mapNodes(res: Res): LNode[] {
   return (res.lineage ?? [])
-    .filter((n) => DOC_KINDS.has(n.docKind as LNode["docKind"]))
     .map<LNode>((n) => ({
       id: n.id,
       docId: n.docId,
@@ -166,7 +155,8 @@ export function mapNodes(res: Res): LNode[] {
       title: n.title,
       meta: n.meta,
       icon: n.icon,
-      docKind: n.docKind as LNode["docKind"],
+      docKind: DOC_KINDS.has(n.docKind as LNode["docKind"]) ? n.docKind as LNode["docKind"] : "page",
+      parameters: n.parameters,
       group: n.group,
       x: n.x,
       y: n.y,
@@ -188,12 +178,12 @@ export function mapNodes(res: Res): LNode[] {
 export function mapEdges(res: Res, nodes: LNode[]): LEdge[] {
   const known = new Set(nodes.map((n) => n.id));
   return (res.lineageEdges ?? [])
-    .filter((e) => REL[e.kind] && known.has(e.fromId) && known.has(e.toId))
+    .filter((e) => known.has(e.fromId) && known.has(e.toId))
     .map<LEdge>((e) => ({
       id: String(e.id),
       from: e.fromId,
       to: e.toId,
-      rel: REL[e.kind],
+      rel: e.kind,
       date: e.date,
       // `derived: "llm"` is how links.py records a machine-proposed edge; the
       // graph draws those dashed and badges them.

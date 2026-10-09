@@ -51,7 +51,7 @@ MINING_LINKS_SQL = """SELECT candidate.record_id || ':source', candidate.record_
     WHERE candidate.source='agent' AND candidate.kind NOT IN ('edge','workflow','mining_receipt')"""
 
 
-def validate_read(query: str, dialect='duckdb'):
+def validate_read(query: str, dialect='duckdb', tables=None):
     statements = sqlglot.parse(query, read=dialect)
     if len(statements) != 1 or not isinstance(statements[0], (exp.Select, exp.Union, exp.Intersect, exp.Except)):
         raise ValueError('Only a single read-only query is allowed')
@@ -61,7 +61,7 @@ def validate_read(query: str, dialect='duckdb'):
         raise ValueError('Knowledge API is read-only')
     ctes = {cte.alias for cte in tree.find_all(exp.CTE)}
     for table in tree.find_all(exp.Table):
-        if not isinstance(table.this, exp.Identifier) or table.name not in TABLES | ctes or table.db or table.catalog:
+        if not isinstance(table.this, exp.Identifier) or table.name not in (TABLES if tables is None else set(tables)) | ctes or table.db or table.catalog:
             raise ValueError('Queries may only read registered knowledge views')
     # Unknown functions include query(), read_parquet(), http and extension hooks.
     allowed = {'json_extract', 'json_extract_string', 'json_array_length', 'json_contains',
