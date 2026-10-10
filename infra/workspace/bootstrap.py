@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Seed app workspaces once; native AX prepares repositories, Substrate runs them."""
 import argparse
+from copy import deepcopy
 import base64
 import io
 import json
@@ -20,8 +21,8 @@ def secret(name):
     return {k:base64.b64decode(v).decode() for k,v in data['data'].items()}
 
 
-def documents(name, image):
-    workspace,task=yaml.safe_load_all((ROOT/f'apps/{name}/workspace/task.yaml').read_text())
+def documents(name, image, manifests=None):
+    workspace,task=deepcopy(manifests) if manifests else list(yaml.safe_load_all((ROOT/f'apps/{name}/workspace/task.yaml').read_text()))
     runtime=secret('mari-runtime');catalog=secret('orchid-catalog')
     if runtime.get('MARI_STORAGE')!='postgres': raise ValueError('This deployment uses PostgreSQL bindings')
     env={k:runtime[k] for k in ('MARI_APP_GRANT_SECRET','MARI_KNOWLEDGE_PROJECT_ID','MARI_STORAGE','MARI_POSTGRES_DSN') if k in runtime}
@@ -43,7 +44,7 @@ def support_files(actor):
         item.uid=item.gid=0;item.uname=item.gname='root'
         return item
     with tarfile.open(fileobj=archive,mode='w:gz') as tar:
-        for path in ('vendor/mari-design/components','flink/ingestion.yaml'):
+        for path in ('vendor/mari-design/components',):
             tar.add(ROOT/path,arcname=path,filter=keep)
         for path in ('design-system/SKILL.md','BRAND-STYLE-GUIDE.md'):
             tar.add(ROOT.parent/'mari-design'/path,arcname='mari-design/'+path,filter=keep)
@@ -51,8 +52,12 @@ def support_files(actor):
         raise RuntimeError('Support file upload failed')
 
 
-def bootstrap(name, image):
-    workspace,task=documents(name,image)
+def prepare(name, image, manifests=None, bindings=None):
+    workspace,task=documents(name,image,manifests)
+    if bindings:
+        env={e["name"]:e["value"] for e in task["spec"]["env"]}
+        env.update(bindings)
+        task["spec"]["env"]=[{"name":k,"value":v} for k,v in env.items()]
     with grpc.insecure_channel('localhost:18080') as channel:
         api=ax_rpc.AXStub(channel)
         try: api.GetTask(ax.GetTaskRequest(atespace='mari',name=name),timeout=15)
@@ -79,6 +84,10 @@ for name in request['repositories']:
                                                      'repositories':[r['name'] for r in workspace['spec']['git']]}).encode()):
         raise RuntimeError(name+': native repository setup failed')
     support_files(name)
+
+
+def bootstrap(name, image):
+    prepare(name,image)
     setup=f'''set -eu
 test -e apps/base/web/node_modules || ln -s /opt/mari-web/node_modules apps/base/web/node_modules
 test -e mari-design/components || ln -s ../vendor/mari-design/components mari-design/components

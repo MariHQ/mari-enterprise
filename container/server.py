@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import load_config
+from .registry import Registry
 
 MAX_BODY = 8 * 1024 * 1024
 
@@ -60,7 +61,7 @@ def create_app(configuration=None, transport=None):
                        server_metadata_url=issuer+'/.well-known/openid-configuration',
                        client_kwargs={'scope': 'openid profile email', 'code_challenge_method': 'S256'})
     app.state.oauth = oauth
-    applications = {a.id: a for a in config.apps if a.enabled}
+    registry = Registry(config.apps)
 
     def authenticated(request):
         user = request.session.get('user')
@@ -152,11 +153,13 @@ def create_app(configuration=None, transport=None):
     @app.get('/api/apps')
     def apps(request: Request):
         authenticated(request)
-        return {'apps': [a.public() for a in applications.values()]}
+        return {'apps': [a.public() for a in registry.applications().values()]}
 
     @app.api_route('/apps/{app_id}/{path:path}', methods=['GET','HEAD','POST','PUT','PATCH','DELETE'])
     async def proxy(app_id: str, path: str, request: Request):
         user = authenticated(request)
+        from starlette.concurrency import run_in_threadpool
+        applications = await run_in_threadpool(registry.applications)
         item = applications.get(app_id)
         if item is None:
             raise HTTPException(404, 'Unknown application')
@@ -197,7 +200,8 @@ def create_app(configuration=None, transport=None):
                         if len(content) > MAX_BODY:
                             raise HTTPException(502, 'Application response is too large')
                     return Response(bytes(content), status_code=upstream.status_code,
-                                    headers={'Content-Type': upstream.headers.get('content-type', 'application/octet-stream')})
+                                    headers={key: value for key, value in upstream.headers.items()
+                                             if key in ('content-type', 'content-disposition')})
         except httpx.RequestError:
             raise HTTPException(503, 'Application is unavailable. Try again shortly.') from None
 

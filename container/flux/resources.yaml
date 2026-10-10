@@ -16,3 +16,6 @@ spec:
         envFrom:
         - secretRef:
             name: mari-runtime
+        env:
+        - name: MARI_AX_ENDPOINT
+          value: host.docker.internal:18080

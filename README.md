@@ -253,3 +253,12 @@ OrchidDB wheel are supplied by the environment.
 Existing source retains its [Apache License 2.0](LICENSE.md) license and
 [notices](NOTICE). Vendored dependencies retain their own license and attribution
 files.
+
+## Independent app development
+
+[Workspace authoring](infra/workspace/README.md) describes native AX agents,
+workspace-owned code, Git mirrors, forks, and dynamic app discovery.
+The separate private [Mari command dashboard](https://github.com/MariHQ/mari-dash)
+provides the operator UI; its README includes live screenshots and a downloadable
+[Job Reports PDF](https://github.com/MariHQ/mari-dash/blob/main/docs/evidence/recent-jobs.pdf)
+produced from real Temporal executions by an AX-authored app.

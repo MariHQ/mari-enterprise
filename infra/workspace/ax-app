@@ -1,0 +1,16 @@
+#!/bin/sh
+# Entry point for the existing local AX installation; no deployment scheduler.
+set -eu
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+root_dir=$(CDPATH= cd -- "$script_dir/../../.." && pwd)
+python="$root_dir/.platform-venv/bin/python"
+case "${1:-help}" in
+  up)
+    docker start kind-registry agent-substrate-control-plane >/dev/null
+    "$python" -c 'import grpc,sys; sys.path.insert(0,sys.argv[1]); from client import ax,ax_rpc; c=grpc.insecure_channel("localhost:18080"); grpc.channel_ready_future(c).result(timeout=60); response=ax_rpc.AXStub(c).ListTasks(ax.ListTasksRequest(atespace="mari"),timeout=10); print("Local AX ready;",len(response.tasks),"app tasks. Use ax-app new <id> --repo <url> --prompt <request>.")' "$script_dir"
+    "$python" "$script_dir/browser.py"
+    ;;
+  new) shift; exec "$python" "$script_dir/author.py" "$@" ;;
+  code|fork|exec|git) exec "$python" "$script_dir/client.py" "$@" ;;
+  *) printf '%s\n' 'Usage: ax-app up | new <id> --repo <url> --prompt <request> | code <id> <prompt> | fork <parent> <child>' ;;
+esac

@@ -91,7 +91,7 @@ function Container() {
     </CardBody></Card>
   </div></div></main>;
   const missing=NAV.flatMap(section=>section.items||[]).filter(item=>!apps.some(a=>a.id===item.id)).map(item=>item.id);
-  return <PageFrame active={selected?.id||'overview'} title={selected?.name||auth.title} mobile={mobile} chrome={{hiddenNavIds:missing,user:{name:user.name,initials:user.name.slice(0,2).toUpperCase(),detail:user.provider},onSignOut:logout,onNavigate:navigate,onOpen:href=>{location.hash=href;}}}>
+  return <PageFrame active={selected?.id||'overview'} title={selected?.name||auth.title} mobile={mobile} chrome={{navSections:[...NAV,{heading:"Apps",items:apps.filter(a=>!NAV.some(s=>s.items?.some(i=>i.id===a.id))).map(a=>({id:a.id,label:a.name,icon:iconFor(a.icon)}))}],hiddenNavIds:missing,user:{name:user.name,initials:user.name.slice(0,2).toUpperCase(),detail:user.provider},onSignOut:logout,onNavigate:navigate,onOpen:href=>{location.hash=href;}}}>
     {error&&<div className="p-4"><Alert tone="blocked" onDismiss={()=>setError('')}>{error}</Alert></div>}
     {selected?<div className="flex h-full min-h-[400px] flex-col">{appError?<div className="p-5"><Alert tone="attention">{appError}</Alert><Button onClick={()=>setFrameVersion(v=>v+1)}>Retry</Button></div>:!frameReady?<p className="p-5 text-[13px] text-ink/70" role="status">Opening {selected.name}…</p>:<iframe key={selected.id+frameVersion} title={selected.name} src={framePath} className="min-h-0 w-full flex-1 border-0 bg-paper" onError={()=>setAppError('The application could not be loaded.')}/>}</div>:<div className="p-5"><Alert tone="attention">This application is not configured.</Alert></div>}
   </PageFrame>;

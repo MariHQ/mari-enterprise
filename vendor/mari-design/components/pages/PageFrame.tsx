@@ -76,6 +76,8 @@ export type ShellChrome = {
   embedded?: boolean;
   /** Host-owned surfaces omitted from this deployment. */
   hiddenNavIds?: string[];
+  /** Host-provided application navigation, including discovered apps. */
+  navSections?: NavSection[];
   user?: ShellUser;
   notifications?: ShellNotification[];
   onSignOut?: () => void;
@@ -257,7 +259,7 @@ export const setStaticFrame = (v: boolean) => { staticFrame = v; };
 
 function MobileFrame({ active, title, children, grow = false, chrome }: { active: string; title?: string; children: ReactNode; grow?: boolean; chrome?: ShellChrome }) {
   const user = chrome?.user ?? NO_USER;
-  const label = NAV.flatMap((s) => s.items).find((i) => i.id === active)?.label ?? title ?? "Mari";
+  const label = (chrome?.navSections ?? NAV).flatMap((s) => s.items).find((i) => i.id === active)?.label ?? title ?? "Mari";
   const search = useGlobalSearch(chrome);
   const [navOpen, setNavOpen] = useState(false);
   return (
@@ -368,7 +370,7 @@ function MobileNav({ open, onClose, active, chrome }: { open: boolean; onClose: 
         className="absolute left-0 top-0 h-full w-[264px] max-w-[85vw] overflow-y-auto outline-none"
       >
         <Sidebar
-          sections={NAV}
+          sections={chrome?.navSections ?? NAV}
           activeId={active}
           // Close on selection: leaving the sheet open over the page it just
           // navigated to looks like the tap did nothing.
@@ -408,7 +410,7 @@ function DesktopStatic({ active, children, chrome }: { active: string; children:
       <a href="#main-content" className={SKIP_LINK}>Skip to main content</a>
       <div className="shrink-0 self-stretch border-r border-ink/10">
         <Sidebar
-          sections={NAV}
+          sections={chrome?.navSections ?? NAV}
           activeId={active}
           onNavigate={chrome?.onNavigate}
           className="min-h-screen"
@@ -460,7 +462,7 @@ function DesktopFrame({ active, chrome, children }: { active: string; chrome?: S
       defaultCollapsed={false}
       sidebar={({ collapsed }) => (
         <Sidebar
-          sections={NAV}
+          sections={chrome?.navSections ?? NAV}
           activeId={active}
           onNavigate={chrome?.onNavigate}
           collapsed={collapsed}

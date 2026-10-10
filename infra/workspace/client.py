@@ -64,13 +64,27 @@ def execute(actor, command, data=None, timeout=1800):
                     yield guest.WriteProcessInputRequest(process_id=process.process_id, data=data[offset:offset+65536])
                 yield guest.WriteProcessInputRequest(process_id=process.process_id, close=True)
             api.WriteProcessInput(chunks(), metadata=metadata, timeout=180)
-        for output in api.StreamProcessOutput(guest.StreamProcessOutputRequest(process_id=process.process_id, follow=True),
-                                              metadata=metadata, timeout=timeout+30):
-            sys.stdout.buffer.write(output.stdout); sys.stdout.buffer.flush()
-            sys.stderr.buffer.write(output.stderr); sys.stderr.buffer.flush()
-            if output.HasField('exit'):
-                return output.exit.exit_code
-    raise RuntimeError('Guest stream ended without an exit status')
+        return follow_process(api, process.process_id, metadata, timeout)
+
+
+def follow_process(api, process_id, metadata, timeout):
+    """Reconnect a read-only output stream; never replay the started command."""
+    offsets = [0, 0]
+    deadline = time.monotonic()+timeout+30
+    while time.monotonic()<deadline:
+        try:
+            for output in api.StreamProcessOutput(guest.StreamProcessOutputRequest(
+                    process_id=process_id, follow=True, stdout_offset=offsets[0], stderr_offset=offsets[1]),
+                    metadata=metadata, timeout=min(240, max(1,deadline-time.monotonic()))):
+                sys.stdout.buffer.write(output.stdout); sys.stdout.buffer.flush()
+                sys.stderr.buffer.write(output.stderr); sys.stderr.buffer.flush()
+                offsets[0] += len(output.stdout); offsets[1] += len(output.stderr)
+                if output.HasField('exit'): return output.exit.exit_code
+            raise RuntimeError('Guest stream ended without an exit status: '+process_id)
+        except grpc.RpcError as error:
+            if error.code() not in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED): raise
+            time.sleep(1)
+    raise TimeoutError('Guest process output deadline exceeded: '+process_id)
 
 
 def fork(parent, child):
@@ -109,7 +123,14 @@ def fork(parent, child):
         native('create','actor',child,'-a','mari','--template',template['atespace']+'/'+template['name'],'--tag',tag)
         child_task = ax.Task(); child_task.CopyFrom(task)
         child_task.metadata.name = child; child_task.metadata.ClearField('creation_timestamp')
-        child_task.ClearField('status'); child_task.spec.suspend = False
+        child_task.ClearField('status'); child_task.spec.suspend = True
+        # Publish a cold-boot fork template before its first activation. Inherited
+        # production workers must never briefly consume their parent's queue.
+        retained = [e for e in child_task.spec.env if e.name != 'MARI_APP_REGISTRATION']
+        del child_task.spec.env[:]; child_task.spec.env.extend(retained)
+        for env in child_task.spec.env:
+            if env.name == 'MARI_APP_WORKER_ENABLED': env.value = 'false'
+            elif env.name == 'TEMPORAL_TASK_QUEUE': env.value = 'mari-app-'+child
         repositories = []
         for index, binding in enumerate(child_task.spec.workspaces):
             workspace = call('GetWorkspace', ax.GetWorkspaceRequest(atespace='mari', name=binding.name))
@@ -122,6 +143,9 @@ def fork(parent, child):
             call('UpdateWorkspace', ax.UpdateWorkspaceRequest(workspace=workspace))
             binding.name = workspace.metadata.name
         call('UpdateTask', ax.UpdateTaskRequest(task=child_task))
+        from ready import promote
+        promote([child])
+        call('ResumeTask', ax.ResumeTaskRequest(atespace='mari', name=child))
     finally:
         call('ResumeTask', ax.ResumeTaskRequest(atespace='mari', name=parent))
     if repositories:
@@ -142,8 +166,6 @@ with Path('/workspace/mari/AGENTS.md').open('a') as out:
 """
         if execute(child,['python','-c',program],json.dumps({'repositories':repositories,'branch':'workspaces/'+child}).encode()):
             raise RuntimeError('Fork exists, but archive branches need repair before coding')
-        from ready import promote
-        promote([child])
     print(json.dumps({'actor':'mari/'+child,'parent':'mari/'+parent,'source_tag':tag,
                       'workspace':'/workspace/mari','owner_agent':'mari/'+child}))
 
@@ -163,7 +185,8 @@ command=['claude','-p','Read AGENTS.md first. '+request['prompt'],'--model','son
          '--permission-mode','acceptEdits','--allowedTools','Read,Edit,Write,Bash',
          '--max-budget-usd',str(request['budget']),'--output-format','json']
 if any(Path('/workspace/agent/claude/projects').glob('*/*.jsonl')): command.append('--continue')
-result=subprocess.run(command,env=dict(github_environment(request['github_token']),CLAUDE_CODE_OAUTH_TOKEN=request['token']),
+result=subprocess.run(command,env=dict(github_environment(request['github_token']),CLAUDE_CODE_OAUTH_TOKEN=request['token'],
+                      **request.get('browser',{})),
                       cwd='/workspace/mari',capture_output=True,text=True)
 Path('/workspace/agent/result-'+str(time.time_ns())+'.json').write_text(result.stdout)
 try:
@@ -174,8 +197,13 @@ except ValueError:
  print('Coding harness returned invalid JSON; inspect workspace agent output.');failed=True
 sys.exit(result.returncode or int(failed))
 """
+    browser = {}
+    endpoint = ROOT/'.artifacts/browser-endpoint.json'
+    if endpoint.exists():
+        config = json.loads(endpoint.read_text())
+        browser = {'MARI_BROWSER_WS_ENDPOINT':config['endpoint'],'MARI_BROWSER_ORIGIN':config['origin']}
     return execute(actor, ['python','-c',program], json.dumps({'token':token,'github_token':load_token(),
-                                                            'prompt':prompt,'budget':budget}).encode())
+                                    'prompt':prompt,'budget':budget,'browser':browser}).encode())
 
 
 def git_archive(actor, app, command):
