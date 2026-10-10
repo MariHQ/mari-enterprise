@@ -284,7 +284,7 @@ index 7564d4d..47806f1 100644
 +	}
 +}
 diff --git a/internal/substrate/client.go b/internal/substrate/client.go
-index bacb078..795f3ab 100644
+index bacb078..7b39585 100644
 --- a/internal/substrate/client.go
 +++ b/internal/substrate/client.go
 @@ -193,6 +193,11 @@ func (c *Client) EnsureAtespace(ctx context.Context, atespace string) error {
@@ -308,6 +308,102 @@ index bacb078..795f3ab 100644
  				HttpGet: &ateapipb.HTTPGetAction{
  					Path: "/readyz",
  					Port: 80,
+@@ -375,6 +382,31 @@ func (c *Client) ResumeActor(ctx context.Context, atespace, actorName string) (*
+ 		},
+ 	}
+ 	resp, err := c.control.ResumeActor(ctx, req)
++	if status.Code(err) == codes.Aborted {
++		// Demand routing may already be activating this actor. Observe that
++		// operation instead of failing AX or issuing a second resume.
++		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
++		defer cancel()
++		for {
++			actor, readErr := c.GetActor(waitCtx, atespace, actorName)
++			if readErr != nil {
++				return nil, "", fmt.Errorf("observing concurrent actor resume: %w", readErr)
++			}
++			if actor.GetStatus().GetState() == ateapipb.ActorState_ACTOR_STATE_RUNNING {
++				resp = &ateapipb.ResumeActorResponse{Actor: actor}
++				err = nil
++				break
++			}
++			if actor.GetStatus().GetState() != ateapipb.ActorState_ACTOR_STATE_RESUMING {
++				break // A different operation owns the actor; preserve its conflict.
++			}
++			select {
++			case <-waitCtx.Done():
++				return nil, "", waitCtx.Err()
++			case <-time.After(200 * time.Millisecond):
++			}
++		}
++	}
+ 	if err != nil {
+ 		return nil, "", fmt.Errorf("resuming actor %s/%s: %w", atespace, actorName, err)
+ 	}
+diff --git a/internal/substrate/client_test.go b/internal/substrate/client_test.go
+new file mode 100644
+index 0000000..6ca039f
+--- /dev/null
++++ b/internal/substrate/client_test.go
+@@ -0,0 +1,58 @@
++package substrate
++
++import (
++	"context"
++	"testing"
++
++	"github.com/agent-substrate/substrate/pkg/proto/ateapipb"
++	"google.golang.org/grpc"
++	"google.golang.org/grpc/codes"
++	"google.golang.org/grpc/status"
++)
++
++type concurrentResumeControl struct {
++	ateapipb.ControlClient
++	states  []ateapipb.ActorState
++	resumes int
++}
++
++func (c *concurrentResumeControl) ResumeActor(context.Context, *ateapipb.ResumeActorRequest, ...grpc.CallOption) (*ateapipb.ResumeActorResponse, error) {
++	c.resumes++
++	return nil, status.Error(codes.Aborted, "another operation is in progress")
++}
++func (c *concurrentResumeControl) GetActor(context.Context, *ateapipb.GetActorRequest, ...grpc.CallOption) (*ateapipb.Actor, error) {
++	state := c.states[0]
++	if len(c.states) > 1 {
++		c.states = c.states[1:]
++	}
++	return &ateapipb.Actor{Status: &ateapipb.ActorStatus{State: state}}, nil
++}
++func TestResumeActorObservesConcurrentActivation(t *testing.T) {
++	control := &concurrentResumeControl{states: []ateapipb.ActorState{ateapipb.ActorState_ACTOR_STATE_RESUMING, ateapipb.ActorState_ACTOR_STATE_RUNNING}}
++	client := &Client{control: control}
++	actor, _, err := client.ResumeActor(context.Background(), "mari", "app")
++	if err != nil || actor.GetStatus().GetState() != ateapipb.ActorState_ACTOR_STATE_RUNNING {
++		t.Fatalf("resume = %v, %v", actor, err)
++	}
++	if control.resumes != 1 {
++		t.Fatalf("replayed resume %d times", control.resumes)
++	}
++}
++func TestResumeActorPreservesUnrelatedConflict(t *testing.T) {
++	control := &concurrentResumeControl{states: []ateapipb.ActorState{ateapipb.ActorState_ACTOR_STATE_SUSPENDING}}
++	client := &Client{control: control}
++	_, _, err := client.ResumeActor(context.Background(), "mari", "app")
++	if status.Code(err) != codes.Aborted {
++		t.Fatalf("got %v, want Aborted", err)
++	}
++}
++func TestResumeActorObservationHonorsCancellation(t *testing.T) {
++	control := &concurrentResumeControl{states: []ateapipb.ActorState{ateapipb.ActorState_ACTOR_STATE_RESUMING}}
++	client := &Client{control: control}
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	_, _, err := client.ResumeActor(ctx, "mari", "app")
++	if err != context.Canceled {
++		t.Fatalf("got %v, want cancellation", err)
++	}
++}
 diff --git a/runner/runner.go b/runner/runner.go
 index 4eaadb0..09ee131 100644
 --- a/runner/runner.go

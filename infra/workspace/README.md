@@ -102,6 +102,8 @@ AX adopts an existing actor's template on reconciliation, including suspend and
 resume, instead of creating an unused template each time. Fresh repository setup
 has a five-minute native readiness allowance. The client waits for activation
 before issuing a guest command; it never retries a dispatched coding command.
+If HTTP routing already started a resume, AX observes that native operation
+instead of marking the task failed or issuing another resume.
 `ax-workspaces.patch` records the AX changes against upstream commit
 `d8ed0fe38bceb7842d3c47817d53d16ccdfcb601`, including their regression tests.
 
