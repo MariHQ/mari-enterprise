@@ -21,7 +21,7 @@ def main():
     args=parser.parse_args()
     revision=output(['git','-C',ROOT,'rev-parse','--short=12','HEAD']).strip()
     apps=json.loads((ROOT/'container/apps.json').read_text())['apps']
-    names=['app-base',*[app['id'] for app in apps],'container','ingestion','temporal','compaction']
+    names=['app-base',*[app['id'] for app in apps if app.get('runtime')!='substrate'],'container','ingestion','temporal','compaction']
     # Validate every prebuilt image before publishing any part of the release.
     images={name:json.loads(output(['docker','image','inspect','mari-'+name+':local']))[0] for name in names}
     base_layers=images['app-base']['RootFS']['Layers']

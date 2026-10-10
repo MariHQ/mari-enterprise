@@ -21,11 +21,11 @@
       "name": "Home",
       "description": "Home in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-overview.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_OVERVIEW_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -37,18 +37,25 @@
       ],
       "routes": [
         "/"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-overview.git",
+      "substrate": {
+        "actor": "mari/overview",
+        "owner_agent": "mari/overview",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/overview/workspace/task.yaml"
+      }
     },
     {
       "id": "knowledge",
       "name": "Knowledge",
       "description": "Knowledge in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-knowledge.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_KNOWLEDGE_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -64,18 +71,25 @@
         "/library",
         "/audit",
         "/welcome"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-knowledge.git",
+      "substrate": {
+        "actor": "mari/knowledge",
+        "owner_agent": "mari/knowledge",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/knowledge/workspace/task.yaml"
+      }
     },
     {
       "id": "facts",
       "name": "Facts",
       "description": "Facts in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-facts.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_FACTS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -87,18 +101,25 @@
       ],
       "routes": [
         "/facts"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-facts.git",
+      "substrate": {
+        "actor": "mari/facts",
+        "owner_agent": "mari/facts",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/facts/workspace/task.yaml"
+      }
     },
     {
       "id": "decisions",
       "name": "Decisions",
       "description": "Decisions in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-decisions.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_DECISIONS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -110,18 +131,25 @@
       ],
       "routes": [
         "/decisions"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-decisions.git",
+      "substrate": {
+        "actor": "mari/decisions",
+        "owner_agent": "mari/decisions",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/decisions/workspace/task.yaml"
+      }
     },
     {
       "id": "lineage",
       "name": "Lineage",
       "description": "Lineage in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-lineage.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_LINEAGE_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -133,18 +161,25 @@
       ],
       "routes": [
         "/lineage"
-      ]
+      ],
+      "substrate": {
+        "actor": "mari/lineage",
+        "owner_agent": "mari/lineage",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/lineage/workspace/task.yaml"
+      },
+      "repository": "https://github.com/MariHQ/mari-app-lineage.git"
     },
     {
       "id": "workflows",
       "name": "Workflows",
       "description": "Workflows in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-workflows.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_WORKFLOWS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -156,18 +191,25 @@
       ],
       "routes": [
         "/workflows"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-workflows.git",
+      "substrate": {
+        "actor": "mari/workflows",
+        "owner_agent": "mari/workflows",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/workflows/workspace/task.yaml"
+      }
     },
     {
       "id": "scheduled-tasks",
       "name": "Scheduled tasks",
       "description": "Scheduled tasks in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-scheduled-tasks.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_SCHEDULED_TASKS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -179,18 +221,25 @@
       ],
       "routes": [
         "/scheduled-tasks"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-scheduled-tasks.git",
+      "substrate": {
+        "actor": "mari/scheduled-tasks",
+        "owner_agent": "mari/scheduled-tasks",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/scheduled-tasks/workspace/task.yaml"
+      }
     },
     {
       "id": "publish",
       "name": "Destinations",
       "description": "Destinations in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-publish.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_PUBLISH_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -202,18 +251,25 @@
       ],
       "routes": [
         "/publish"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-publish.git",
+      "substrate": {
+        "actor": "mari/publish",
+        "owner_agent": "mari/publish",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/publish/workspace/task.yaml"
+      }
     },
     {
       "id": "insights",
       "name": "Analytics",
       "description": "Analytics in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-insights.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_INSIGHTS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -225,18 +281,25 @@
       ],
       "routes": [
         "/insights"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-insights.git",
+      "substrate": {
+        "actor": "mari/insights",
+        "owner_agent": "mari/insights",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/insights/workspace/task.yaml"
+      }
     },
     {
       "id": "sources",
       "name": "Sources",
       "description": "Sources in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-sources.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_SOURCES_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -248,18 +311,25 @@
       ],
       "routes": [
         "/sources"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-sources.git",
+      "substrate": {
+        "actor": "mari/sources",
+        "owner_agent": "mari/sources",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/sources/workspace/task.yaml"
+      }
     },
     {
       "id": "settings",
       "name": "Settings",
       "description": "Settings in your Mari workspace.",
       "icon": "app",
-      "url": "http://mari-settings.stack.svc.cluster.local",
+      "url": "http://host.docker.internal:18081",
       "url_env": "MARI_SETTINGS_URL",
       "grant_secret_env": "MARI_APP_GRANT_SECRET",
       "enabled": true,
-      "runtime": "serverless",
+      "runtime": "substrate",
       "reads": "orchiddb",
       "methods": [
         "GET",
@@ -277,7 +347,14 @@
         "/settings/audit",
         "/settings/design",
         "/preferences"
-      ]
+      ],
+      "repository": "https://github.com/MariHQ/mari-app-settings.git",
+      "substrate": {
+        "actor": "mari/settings",
+        "owner_agent": "mari/settings",
+        "workspace": "/workspace/mari",
+        "manifest": "apps/settings/workspace/task.yaml"
+      }
     }
   ]
 }

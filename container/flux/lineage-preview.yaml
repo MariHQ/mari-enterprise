@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mari-lineage-preview-registry
+  namespace: stack
+data:
+  apps.json: "{\n  \"title\": \"Lineage workspace preview\",\n  \"project\": \"1\"\
+    ,\n  \"auth\": {\n    \"local\": {\n      \"enabled\": true,\n      \"username\"\
+    : \"demo\",\n      \"password_env\": \"MARI_LOCAL_PASSWORD\"\n    },\n    \"oidc\"\
+    : {\n      \"enabled\": true,\n      \"label\": \"Single sign-on\",\n      \"\
+    issuer_env\": \"MARI_OIDC_ISSUER\",\n      \"client_id_env\": \"MARI_OIDC_CLIENT_ID\"\
+    ,\n      \"client_secret_env\": \"MARI_OIDC_CLIENT_SECRET\"\n    }\n  },\n  \"\
+    apps\": [\n    {\n      \"id\": \"lineage\",\n      \"name\": \"Lineage\",\n \
+    \     \"description\": \"Lineage in your Mari workspace.\",\n      \"icon\": \"\
+    app\",\n      \"url\": \"http://host.docker.internal:18081\",\n      \"url_env\"\
+    : \"MARI_LINEAGE_URL\",\n      \"grant_secret_env\": \"MARI_APP_GRANT_SECRET\"\
+    ,\n      \"enabled\": true,\n      \"runtime\": \"substrate\",\n      \"reads\"\
+    : \"orchiddb\",\n      \"methods\": [\n        \"GET\",\n        \"HEAD\"\n  \
+    \    ],\n      \"routes\": [\n        \"/lineage\"\n      ],\n      \"substrate\"\
+    : {\n        \"actor\": \"mari/lineage-preview\",\n        \"owner_agent\": \"\
+    mari/lineage-preview\",\n        \"workspace\": \"/workspace/mari\",\n       \
+    \ \"manifest\": \"apps/lineage/workspace/task.yaml\"\n      }\n    }\n  ]\n}"
+---
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: mari-lineage-preview
+  namespace: stack
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: '1'
+    spec:
+      containers:
+      - envFrom:
+        - secretRef:
+            name: mari-runtime
+        - configMapRef:
+            name: mari-app-messaging-dgt8t4597t
+        image: mari-container:local
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MARI_CONTAINER_CONFIG
+          value: /etc/mari/apps.json
+        - name: MARI_PUBLIC_ORIGIN
+          value: http://mari-lineage-preview.stack.127.0.0.1.sslip.io:8084
+        volumeMounts:
+        - name: registry
+          mountPath: /etc/mari
+          readOnly: true
+      volumes:
+      - name: registry
+        configMap:
+          name: mari-lineage-preview-registry

@@ -30,6 +30,13 @@ class Auth(Strict):
     oidc: OIDC = Field(default_factory=OIDC)
 
 
+class SubstrateBinding(Strict):
+    actor: str = Field(pattern=r'^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$')
+    owner_agent: str
+    workspace: str
+    manifest: str
+
+
 class Application(Strict):
     id: str = Field(pattern=r'^[a-z][a-z0-9-]{0,47}$')
     name: str = Field(min_length=1, max_length=100)
@@ -39,10 +46,18 @@ class Application(Strict):
     url: str
     url_env: str
     grant_secret_env: str
+    repository: str | None = None
     enabled: bool = True
-    runtime: Literal['serverless'] = 'serverless'
+    runtime: Literal['serverless', 'substrate'] = 'serverless'
+    substrate: SubstrateBinding | None = None
     reads: Literal['orchiddb'] = 'orchiddb'
     methods: list[Literal['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']] = ['GET', 'HEAD']
+
+    @model_validator(mode='after')
+    def runtime_binding(self):
+        if (self.runtime == 'substrate') != (self.substrate is not None):
+            raise ValueError('Substrate applications require a substrate binding')
+        return self
 
     def endpoint(self):
         value = os.getenv(self.url_env, self.url).rstrip('/')

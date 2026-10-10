@@ -1,0 +1,48 @@
+[submodule "apps/base"]
+	path = apps/base
+	url = https://github.com/MariHQ/mari-app-base.git
+	branch = main
+[submodule "apps/overview"]
+	path = apps/overview
+	url = https://github.com/MariHQ/mari-app-overview.git
+	branch = main
+[submodule "apps/knowledge"]
+	path = apps/knowledge
+	url = https://github.com/MariHQ/mari-app-knowledge.git
+	branch = main
+[submodule "apps/facts"]
+	path = apps/facts
+	url = https://github.com/MariHQ/mari-app-facts.git
+	branch = main
+[submodule "apps/decisions"]
+	path = apps/decisions
+	url = https://github.com/MariHQ/mari-app-decisions.git
+	branch = main
+[submodule "apps/lineage"]
+	path = apps/lineage
+	url = https://github.com/MariHQ/mari-app-lineage.git
+	branch = main
+[submodule "apps/workflows"]
+	path = apps/workflows
+	url = https://github.com/MariHQ/mari-app-workflows.git
+	branch = main
+[submodule "apps/scheduled-tasks"]
+	path = apps/scheduled-tasks
+	url = https://github.com/MariHQ/mari-app-scheduled-tasks.git
+	branch = main
+[submodule "apps/publish"]
+	path = apps/publish
+	url = https://github.com/MariHQ/mari-app-publish.git
+	branch = main
+[submodule "apps/insights"]
+	path = apps/insights
+	url = https://github.com/MariHQ/mari-app-insights.git
+	branch = main
+[submodule "apps/sources"]
+	path = apps/sources
+	url = https://github.com/MariHQ/mari-app-sources.git
+	branch = main
+[submodule "apps/settings"]
+	path = apps/settings
+	url = https://github.com/MariHQ/mari-app-settings.git
+	branch = main

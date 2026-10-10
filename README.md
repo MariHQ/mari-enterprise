@@ -1,5 +1,10 @@
 # Mari Enterprise
 
+App source now lives in individual AX workspaces, with private `MariHQ/mari-app-*`
+Git repositories as secondary archives. The `apps/*` directories here are Git
+submodules. See [App workspaces and Git archives](infra/workspace/README.md) for
+coding, serving, direct pushes, native forks, and credential setup.
+
 Mari Enterprise is a platform for turning an organization's information into
 knowledge and building applications around it. It connects source systems,
 extracts facts and decisions, preserves the evidence behind them, and gives

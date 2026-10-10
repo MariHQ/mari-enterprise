@@ -1,0 +1,446 @@
+diff --git a/cmd/ax-task-runner/main.go b/cmd/ax-task-runner/main.go
+index e94564e..ebac66f 100644
+--- a/cmd/ax-task-runner/main.go
++++ b/cmd/ax-task-runner/main.go
+@@ -34,6 +34,7 @@ import (
+ 	"strings"
+ 	"syscall"
+ 
++	"github.com/google/ax/internal/workspace"
+ 	"github.com/google/ax/pkg/apis/v1alpha1"
+ 	"github.com/google/ax/runner"
+ 	"gopkg.in/yaml.v3"
+@@ -47,13 +48,18 @@ func (l *stringList) Set(v string) error { *l = append(*l, v); return nil }
+ 
+ func main() {
+ 	var (
+-		cfg      runner.Config
+-		taskFile string
+-		wsFiles  stringList
++		cfg         runner.Config
++		taskFile    string
++		wsFiles     stringList
++		prepareOnly bool
+ 	)
+ 	flag.IntVar(&cfg.Port, "port", runner.DefaultPort, "Port for the metadata and guest server")
+ 	flag.StringVar(&taskFile, "task-file", "", "Read the Task YAML from this file instead of AX_TASK_YAML")
+ 	flag.Var(&wsFiles, "workspace-file", "Read Workspace YAML from this file instead of the environment; repeatable, and each file may hold several documents")
++	flag.StringVar(&cfg.HTTPUpstream, "http-upstream", "", "Local HTTP application origin served alongside guest services")
++	flag.StringVar(&cfg.LogDir, "log-dir", "", "Directory for guest process output")
++	flag.StringVar(&workspace.AXDir, "state-dir", workspace.DefaultAXDir, "Persistent workspace initialization state directory")
++	flag.BoolVar(&prepareOnly, "prepare-only", false, "Prepare declared workspaces once, without starting servers or the task command")
+ 	flag.Parse()
+ 
+ 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+@@ -74,6 +80,12 @@ func main() {
+ 
+ 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+ 	defer stop()
++	if prepareOnly {
++		if err := runner.PrepareWorkspaces(ctx, cfg); err != nil {
++			fatal(err)
++		}
++		return
++	}
+ 
+ 	if err := runner.Run(ctx, cfg); err != nil {
+ 		fatal(err)
+diff --git a/internal/controller/reconciler.go b/internal/controller/reconciler.go
+index 31c399b..9850141 100644
+--- a/internal/controller/reconciler.go
++++ b/internal/controller/reconciler.go
+@@ -139,45 +139,57 @@ func (r *TaskReconciler) Reconcile(ctx context.Context, task *v1alpha1.Task, gat
+ 		templateName = parts[1]
+ 	}
+ 
+-	// Prepare container environment variables (task env + credentials + specs)
+-	extraEnv := make(map[string]string)
+-	if task.Spec != nil {
+-		for _, e := range task.Spec.Env {
+-			if e.Name != "" {
+-				extraEnv[e.Name] = e.Value
++	// Existing actors already own a template. EnsureActor adopts that actor rather
++	// than changing its template, so provisioning another would only warm an unused
++	// golden sandbox on every status update or suspend/resume operation.
++	existingActor, lookupErr := r.client.GetActor(ctx, atespace, actorName)
++	if lookupErr != nil && status.Code(lookupErr) != codes.NotFound {
++		return task, fmt.Errorf("looking up actor: %w", lookupErr)
++	}
++	if existingActor != nil && existingActor.GetActorTemplate() != nil {
++		templateAtespace = existingActor.GetActorTemplate().GetAtespace()
++		templateName = existingActor.GetActorTemplate().GetName()
++	} else {
++		// Prepare container environment variables (task env + credentials + specs)
++		extraEnv := make(map[string]string)
++		if task.Spec != nil {
++			for _, e := range task.Spec.Env {
++				if e.Name != "" {
++					extraEnv[e.Name] = e.Value
++				}
+ 			}
+ 		}
+-	}
+ 
+-	if geminiKey := r.lookupGeminiKey(ctx, atespace); geminiKey != "" {
+-		extraEnv[geminiSecretKey] = geminiKey
+-	}
+-
+-	// Inject Task YAML specification into container environment
+-	if taskYAML, err := yaml.Marshal(task); err == nil {
+-		extraEnv["AX_TASK_YAML"] = string(taskYAML)
+-	}
++		if geminiKey := r.lookupGeminiKey(ctx, atespace); geminiKey != "" {
++			extraEnv[geminiSecretKey] = geminiKey
++		}
+ 
+-	// Inject the bound Workspace specs as a multi-document YAML stream.
+-	if wsYAML, err := marshalWorkspaces(workspaces); err == nil && wsYAML != "" {
+-		extraEnv["AX_WORKSPACES_YAML"] = wsYAML
+-	}
++		// Inject Task YAML specification into container environment
++		if taskYAML, err := yaml.Marshal(task); err == nil {
++			extraEnv["AX_TASK_YAML"] = string(taskYAML)
++		}
+ 
+-	// If a custom image, workspace, or extra environment is specified, provision or use a dedicated ActorTemplate
+-	if task.Spec != nil && (task.Spec.Image != "" || len(extraEnv) > 0) {
+-		slog.Info("ensuring custom ActorTemplate for task", "image", task.Spec.Image)
+-		customTemplateName := taskTemplateName(task.Metadata.Name, task.Spec.Image, extraEnv)
++		// Inject the bound Workspace specs as a multi-document YAML stream.
++		if wsYAML, err := marshalWorkspaces(workspaces); err == nil && wsYAML != "" {
++			extraEnv["AX_WORKSPACES_YAML"] = wsYAML
++		}
+ 
+-		tmpl, err := r.client.EnsureActorTemplateWithImage(ctx, templateAtespace, templateName, atespace, customTemplateName, task.Spec.Image, extraEnv)
+-		if err != nil {
+-			slog.Warn("could not create custom ActorTemplate, falling back to default template", "error", err)
+-		} else if tmpl != nil && tmpl.Metadata != nil {
+-			templateAtespace = tmpl.Metadata.Atespace
+-			templateName = tmpl.Metadata.Name
+-			slog.Info("using custom ActorTemplate for actor", "templateAtespace", templateAtespace, "templateName", templateName)
++		// If a custom image, workspace, or extra environment is specified, provision or use a dedicated ActorTemplate
++		if task.Spec != nil && (task.Spec.Image != "" || len(extraEnv) > 0) {
++			slog.Info("ensuring custom ActorTemplate for task", "image", task.Spec.Image)
++			customTemplateName := taskTemplateName(task.Metadata.Name, task.Spec.Image, extraEnv)
++
++			tmpl, err := r.client.EnsureActorTemplateWithImage(ctx, templateAtespace, templateName, atespace, customTemplateName, task.Spec.Image, extraEnv)
++			if err != nil {
++				slog.Warn("could not create custom ActorTemplate, falling back to default template", "error", err)
++			} else if tmpl != nil && tmpl.Metadata != nil {
++				templateAtespace = tmpl.Metadata.Atespace
++				templateName = tmpl.Metadata.Name
++				slog.Info("using custom ActorTemplate for actor", "templateAtespace", templateAtespace, "templateName", templateName)
++			}
+ 		}
+-	}
+ 
++	}
+ 	_, err := r.client.EnsureActor(ctx, atespace, actorName, templateAtespace, templateName)
+ 	if err != nil {
+ 		r.setNotReady(task, "ActorCreationFailed", err.Error(), now)
+diff --git a/internal/controller/reconciler_test.go b/internal/controller/reconciler_test.go
+index e699ee0..2952b1f 100644
+--- a/internal/controller/reconciler_test.go
++++ b/internal/controller/reconciler_test.go
+@@ -26,11 +26,15 @@ import (
+ 	"github.com/google/ax/internal/substrate"
+ 	"github.com/google/ax/pkg/apis/v1alpha1"
+ 	"google.golang.org/grpc"
++	"google.golang.org/grpc/codes"
+ 	"google.golang.org/grpc/credentials/insecure"
++	"google.golang.org/grpc/status"
+ )
+ 
+ type mockControlServer struct {
+ 	ateapipb.UnimplementedControlServer
++	existingActor    *ateapipb.Actor
++	templateReads    int
+ 	workerIP         string
+ 	createdAtespaces []string
+ 	createdActors    []string
+@@ -56,7 +60,20 @@ func (m *mockControlServer) CreateAtespace(ctx context.Context, req *ateapipb.Cr
+ 	return &ateapipb.Atespace{Metadata: &ateapipb.ResourceMetadata{Name: name}}, nil
+ }
+ 
++func (m *mockControlServer) GetActor(ctx context.Context, req *ateapipb.GetActorRequest) (*ateapipb.Actor, error) {
++	if m.existingActor != nil {
++		return m.existingActor, nil
++	}
++	return nil, status.Error(codes.NotFound, "missing")
++}
++func (m *mockControlServer) GetActorTemplate(ctx context.Context, req *ateapipb.GetActorTemplateRequest) (*ateapipb.ActorTemplate, error) {
++	m.templateReads++
++	return nil, status.Error(codes.Unimplemented, "not needed by fixture")
++}
+ func (m *mockControlServer) CreateActor(ctx context.Context, req *ateapipb.CreateActorRequest) (*ateapipb.Actor, error) {
++	if m.existingActor != nil {
++		return nil, status.Error(codes.AlreadyExists, "already exists")
++	}
+ 	name := ""
+ 	if req.Actor != nil && req.Actor.Metadata != nil {
+ 		name = req.Actor.Metadata.Name
+@@ -454,3 +471,41 @@ func TestReconcileDelete_RemovesActorAndTemplates(t *testing.T) {
+ 		}
+ 	}
+ }
++
++func TestExistingActorReconcileDoesNotProvisionUnusedTemplate(t *testing.T) {
++	lis, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer lis.Close()
++	mock := &mockControlServer{existingActor: &ateapipb.Actor{
++		Metadata:      &ateapipb.ResourceMetadata{Name: "app", Atespace: "default"},
++		ActorTemplate: &ateapipb.ObjectRef{Name: "preserved-template", Atespace: "default"},
++		Status:        &ateapipb.ActorStatus{State: ateapipb.ActorState_ACTOR_STATE_SUSPENDED},
++	}}
++	server := grpc.NewServer()
++	ateapipb.RegisterControlServer(server, mock)
++	go server.Serve(lis)
++	defer server.Stop()
++	client, err := substrate.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer client.Close()
++	reconciler := controller.NewTaskReconciler(client, "default-template", "ax-system")
++	reconciler.SecretResolver = noSecrets
++	reconciler.WorkspaceReadyTimeout = time.Millisecond
++	task := &v1alpha1.Task{Metadata: &v1alpha1.ObjectMeta{Name: "app", Atespace: "default"}, Spec: &v1alpha1.TaskSpec{Image: "test", Suspend: true}}
++	for _, suspended := range []bool{true, false, true} {
++		task.Spec.Suspend = suspended
++		if _, err := reconciler.Reconcile(context.Background(), task, nil); err != nil {
++			t.Fatal(err)
++		}
++	}
++	if mock.templateReads != 0 {
++		t.Fatalf("existing actor caused %d unnecessary template lookups", mock.templateReads)
++	}
++	if len(mock.createdActors) != 0 {
++		t.Fatal("replaced the existing actor")
++	}
++}
+diff --git a/internal/metadata/server.go b/internal/metadata/server.go
+index fb4feba..3b0e4d6 100644
+--- a/internal/metadata/server.go
++++ b/internal/metadata/server.go
+@@ -47,6 +47,8 @@ type Server struct {
+ type ServerOptions struct {
+ 	WorkspacePath string
+ 	LogDir        string
++	// AppHandler serves application HTTP paths alongside the guest services.
++	AppHandler http.Handler
+ }
+ 
+ // NewServer creates a new metadata and guest server serving the task and its
+@@ -90,6 +92,9 @@ func NewServer(port int, task *v1alpha1.Task, workspaces []*v1alpha1.Workspace,
+ 	}
+ 
+ 	mux := http.NewServeMux()
++	if opt.AppHandler != nil {
++		mux.Handle("/", opt.AppHandler)
++	}
+ 	mux.HandleFunc("/healthz", s.handleHealthz)
+ 	mux.HandleFunc("/readyz", s.handleReadyz)
+ 
+diff --git a/internal/metadata/server_test.go b/internal/metadata/server_test.go
+index 7564d4d..47806f1 100644
+--- a/internal/metadata/server_test.go
++++ b/internal/metadata/server_test.go
+@@ -202,3 +202,34 @@ func TestMetadataServer_GuestServicesRequireDebug(t *testing.T) {
+ 		t.Fatalf("expected StartProcess to fail when spec.debug is false")
+ 	}
+ }
++
++func TestApplicationHandlerKeepsMetadataSeparate(t *testing.T) {
++	s := metadata.NewServer(19997, nil, nil, metadata.ServerOptions{AppHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		w.Header().Set("X-App", "lineage")
++		w.WriteHeader(http.StatusCreated)
++		_, _ = io.WriteString(w, r.URL.RequestURI())
++	})})
++	if err := s.Start(); err != nil {
++		t.Fatal(err)
++	}
++	defer s.Stop(context.Background())
++	for _, path := range []string{"/api/lineage?limit=2", "/assets/main.js"} {
++		response, err := http.Get("http://127.0.0.1:19997" + path)
++		if err != nil {
++			t.Fatal(err)
++		}
++		body, _ := io.ReadAll(response.Body)
++		response.Body.Close()
++		if response.StatusCode != http.StatusCreated || string(body) != path {
++			t.Fatalf("application routing: %d %q", response.StatusCode, body)
++		}
++	}
++	response, err := http.Get("http://127.0.0.1:19997/readyz")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer response.Body.Close()
++	if response.StatusCode != http.StatusServiceUnavailable || response.Header.Get("X-App") != "" {
++		t.Fatal("application swallowed runner readiness")
++	}
++}
+diff --git a/internal/substrate/client.go b/internal/substrate/client.go
+index bacb078..795f3ab 100644
+--- a/internal/substrate/client.go
++++ b/internal/substrate/client.go
+@@ -193,6 +193,11 @@ func (c *Client) EnsureAtespace(ctx context.Context, atespace string) error {
+ 	return nil
+ }
+ 
++// GetActor fetches the existing actor without provisioning anything.
++func (c *Client) GetActor(ctx context.Context, atespace, name string) (*ateapipb.Actor, error) {
++	return c.control.GetActor(ctx, &ateapipb.GetActorRequest{Actor: &ateapipb.ObjectRef{Atespace: atespace, Name: name}})
++}
++
+ // GetActorTemplate fetches an ActorTemplate by name.
+ func (c *Client) GetActorTemplate(ctx context.Context, atespace, templateName string) (*ateapipb.ActorTemplate, error) {
+ 	req := &ateapipb.GetActorTemplateRequest{
+@@ -247,6 +252,8 @@ func BuildActorTemplate(atespace, name, image string, envMap map[string]string,
+ 			Command: command,
+ 			Env:     envList,
+ 			Readyz: &ateapipb.ContainerReadyz{
++				// Maiden setup may fetch several repositories before readiness.
++				TimeoutSeconds: 300,
+ 				HttpGet: &ateapipb.HTTPGetAction{
+ 					Path: "/readyz",
+ 					Port: 80,
+diff --git a/runner/runner.go b/runner/runner.go
+index 4eaadb0..09ee131 100644
+--- a/runner/runner.go
++++ b/runner/runner.go
+@@ -26,6 +26,9 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"log/slog"
++	"net/http"
++	"net/http/httputil"
++	"net/url"
+ 	"os"
+ 	"os/exec"
+ 	"syscall"
+@@ -54,6 +57,10 @@ type Config struct {
+ 	// Port is where the metadata HTTP endpoints and guest gRPC services listen.
+ 	// Zero means DefaultPort.
+ 	Port int
++	// HTTPUpstream optionally serves a local application on the runner HTTP port.
++	HTTPUpstream string
++	// LogDir persists guest process output in a workspace-owned directory.
++	LogDir string
+ 	// Task is the task to run. It supplies the command, its environment, and
+ 	// the workspace bindings. Nil runs with no command and default settings.
+ 	Task *v1alpha1.Task
+@@ -116,6 +123,29 @@ type CommandExit struct {
+ // Workspace setup failures are logged but do not abort the run; the task simply
+ // never reports ready. Run returns an error only when the runner itself cannot
+ // start, for example when the metadata server or the command fails to launch.
++// PrepareWorkspaces performs native maiden-run setup without a running server.
++// Callers may supply transient Git credentials in the process environment.
++func PrepareWorkspaces(ctx context.Context, cfg Config) error {
++	for _, m := range resolveMounts(cfg) {
++		result, err := workspace.SetupWorkspace(ctx, m.ws, m.path, m.ref.GetGoal())
++		if err != nil {
++			return fmt.Errorf("preparing workspace %s: %w", m.ref.GetName(), err)
++		}
++		if result.IsMaidenRun {
++			count := 0
++			for _, repo := range m.ws.GetSpec().GetGit() {
++				if repo != nil && repo.GetRepo() != "" {
++					count++
++				}
++			}
++			if len(result.ClonedRepos) != count {
++				return fmt.Errorf("workspace %s: Git setup incomplete", m.ref.GetName())
++			}
++		}
++	}
++	return nil
++}
++
+ func Run(ctx context.Context, cfg Config) error {
+ 	port := cfg.Port
+ 	if port <= 0 {
+@@ -143,7 +173,15 @@ func Run(ctx context.Context, cfg Config) error {
+ 		_ = os.Setenv(e.GetName(), e.GetValue())
+ 	}
+ 
+-	metaServer := metadata.NewServer(port, cfg.Task, workspaces, metadata.ServerOptions{WorkspacePath: wsPath})
++	var appHandler http.Handler
++	if cfg.HTTPUpstream != "" {
++		upstream, err := url.Parse(cfg.HTTPUpstream)
++		if err != nil || upstream.Scheme != "http" || upstream.Hostname() != "127.0.0.1" || upstream.User != nil || upstream.RawQuery != "" || upstream.Fragment != "" || (upstream.Path != "" && upstream.Path != "/") {
++			return fmt.Errorf("HTTP upstream must be a loopback HTTP origin")
++		}
++		appHandler = httputil.NewSingleHostReverseProxy(upstream)
++	}
++	metaServer := metadata.NewServer(port, cfg.Task, workspaces, metadata.ServerOptions{WorkspacePath: wsPath, LogDir: cfg.LogDir, AppHandler: appHandler})
+ 	if err := metaServer.Start(); err != nil {
+ 		return fmt.Errorf("starting metadata server: %w", err)
+ 	}
+diff --git a/runner/runner_test.go b/runner/runner_test.go
+index e44cea1..6f53a7e 100644
+--- a/runner/runner_test.go
++++ b/runner/runner_test.go
+@@ -21,6 +21,7 @@ import (
+ 	"net"
+ 	"net/http"
+ 	"os"
++	"os/exec"
+ 	"path/filepath"
+ 	"strings"
+ 	"testing"
+@@ -302,3 +303,51 @@ func TestRun_SetsUpEveryWorkspace(t *testing.T) {
+ 		t.Errorf("workspaces endpoint should list code then tools:\n%s", body)
+ 	}
+ }
++
++func TestPrepareWorkspacesPreservesRestoredCheckout(t *testing.T) {
++	root := t.TempDir()
++	source := filepath.Join(root, "source")
++	target := filepath.Join(root, "workspace")
++	if err := os.MkdirAll(source, 0755); err != nil {
++		t.Fatal(err)
++	}
++	git := func(dir string, args ...string) {
++		t.Helper()
++		cmd := exec.Command("git", args...)
++		cmd.Dir = dir
++		if out, err := cmd.CombinedOutput(); err != nil {
++			t.Fatalf("git %v: %v: %s", args, err, out)
++		}
++	}
++	git(source, "init", "-b", "main")
++	git(source, "config", "user.name", "test")
++	git(source, "config", "user.email", "test@example.com")
++	if err := os.WriteFile(filepath.Join(source, "code.txt"), []byte("archived"), 0644); err != nil {
++		t.Fatal(err)
++	}
++	git(source, "add", ".")
++	git(source, "commit", "-m", "initial")
++	original := workspace.AXDir
++	workspace.AXDir = filepath.Join(root, "durable-state")
++	t.Cleanup(func() { workspace.AXDir = original })
++	cfg := runner.Config{
++		Task:       &v1alpha1.Task{Spec: &v1alpha1.TaskSpec{Workspaces: []*v1alpha1.WorkspaceRef{{Name: "app", Path: target}}}},
++		Workspaces: []*v1alpha1.Workspace{{Metadata: &v1alpha1.ObjectMeta{Name: "app"}, Spec: &v1alpha1.WorkspaceSpec{Git: []*v1alpha1.GitRepo{{Repo: source, Dir: ".", Branch: "main"}}}}},
++	}
++	if err := runner.PrepareWorkspaces(context.Background(), cfg); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.WriteFile(filepath.Join(target, "code.txt"), []byte("uncommitted agent edit"), 0644); err != nil {
++		t.Fatal(err)
++	}
++	if err := os.Rename(source, source+"-offline"); err != nil {
++		t.Fatal(err)
++	}
++	if err := runner.PrepareWorkspaces(context.Background(), cfg); err != nil {
++		t.Fatal(err)
++	}
++	data, err := os.ReadFile(filepath.Join(target, "code.txt"))
++	if err != nil || string(data) != "uncommitted agent edit" {
++		t.Fatalf("resume replaced workspace: %q, %v", data, err)
++	}
++}

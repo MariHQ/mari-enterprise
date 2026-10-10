@@ -169,12 +169,18 @@ def create_app(configuration=None, transport=None):
             decoded = unquote(decoded)
         if decoded.startswith('/') or '\\' in decoded or any(p in ('.', '..') for p in decoded.split('/')) or '%' in decoded or '?' in decoded or '#' in decoded:
             raise HTTPException(400, 'Invalid application path')
+        if item.substrate and (decoded.split('/')[0] in ('metadata', 'healthz', 'readyz')
+                               or decoded.split('/')[0].startswith('ateenv.')
+                               or request.headers.get('content-type', '').lower().startswith('application/grpc')):
+            raise HTTPException(404, 'Unknown application route')
         body = bytearray()
         async for chunk in request.stream():
             body.extend(chunk)
             if len(body) > MAX_BODY:
                 raise HTTPException(413, 'Request is too large')
         forwarded = {'Authorization': 'Bearer '+grant_for(item, user, config.project)}
+        if item.substrate:
+            forwarded['ate-target-actor'] = item.substrate.actor
         for key in ('accept', 'content-type', 'idempotency-key'):
             if key in request.headers:
                 forwarded[key] = request.headers[key]

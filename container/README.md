@@ -1,8 +1,10 @@
 # Mari container
 
 Mari's host web app owns sign-in, navigation, and authenticated access to a fixed
-set of serverless applications. `apps.json` is the only app list. There is no
-service discovery, registration API, or mutable app database. Changes take effect
+set of applications. `apps.json` is the only app list. Each app's registry entry
+names its Substrate actor, owning AX task, workspace path, execution manifest,
+and secondary Git archive. Requests go through native Substrate activation.
+There is no registration service or mutable app database. Changes take effect
 when the container restarts.
 
 ## Local preview
@@ -63,7 +65,9 @@ exposing the service outside your workspace.
 
 Each entry supplies `id`, display name, description, icon, upstream `url`, an
 optional environment override identified by `url_env`, `grant_secret_env`,
-`enabled`, allowed HTTP `methods`, `runtime: "serverless"`, and `reads: "orchiddb"`.
+`enabled`, allowed HTTP `methods`, `runtime: "substrate"`, `substrate` binding,
+optional `repository`, and `reads: "orchiddb"`. Fixed serverless origins remain
+supported for local development and compatibility.
 Only enabled entries appear and can be mounted. The backend validates duplicate
 IDs, origins, and the contract. Upstream origins and secret names are not exposed
 by `/api/apps`. Override the config file with `MARI_CONTAINER_CONFIG`.

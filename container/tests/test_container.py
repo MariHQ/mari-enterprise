@@ -37,6 +37,22 @@ class ContainerTests(unittest.TestCase):
     def login(self):
         return self.client.post('/auth/login',json={'username':'demo','password':'demo'},headers=CSRF)
 
+    def test_substrate_actor_is_registry_owned(self):
+        self.login()
+        response=self.client.get('/apps/lineage/api/lineage/catalog',headers={'ate-target-actor':'mari/attacker'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(self.seen[-1].headers['ate-target-actor'],'mari/lineage')
+        claims=json.loads(base64.urlsafe_b64decode(self.seen[-1].headers['authorization'][7:].split('.')[0]+'=='))
+        self.assertEqual(claims['aud'],'lineage')
+
+    def test_substrate_tools_are_not_browser_routes(self):
+        self.login()
+        for path in ('metadata/v1alpha1/ax/task','readyz','healthz','ateenv.v1alpha.ProcessService/StartProcess','%6detadata/v1alpha1/ax/task'):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get('/apps/lineage/'+path).status_code,404)
+        self.assertEqual(self.client.post('/apps/lineage/api/lineage',headers={**CSRF,'Content-Type':'application/grpc'}).status_code,404)
+        self.assertEqual(self.seen,[])
+
     def test_login_cookie_logout_and_access(self):
         self.assertEqual(self.client.get('/api/apps').status_code,401)
         self.assertEqual(self.client.get('/apps/sources/').status_code,401)

@@ -1,2 +1,3 @@
 resources:
 - resources.yaml
+- lineage-preview.yaml

@@ -1,0 +1,2 @@
+# Unified patches include context prefixes before tabs and blank lines.
+infra/workspace/*.patch -whitespace

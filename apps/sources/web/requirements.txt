@@ -1,2 +1,0 @@
-# Shared base dependencies for local development.
--r ../../base/requirements.txt
