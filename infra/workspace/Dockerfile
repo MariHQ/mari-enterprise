@@ -1,4 +1,4 @@
-# Toolchain only. App source is uploaded once into the durable workspace.
+# Toolchain image. AX clones each app into the durable workspace once.
 ARG MARI_APP_BASE=mari-app-base:local
 FROM node:22-bookworm-slim AS node
 FROM mari-miner:local AS coding
